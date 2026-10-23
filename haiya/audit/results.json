@@ -1,0 +1,73 @@
+{
+  "errors": [],
+  "reports": [
+    {
+      "view": "storefront",
+      "violations": []
+    },
+    {
+      "view": "checkout",
+      "violations": []
+    },
+    {
+      "view": "orders",
+      "violations": []
+    },
+    {
+      "view": "kitchen",
+      "violations": []
+    },
+    {
+      "view": "pos",
+      "violations": []
+    },
+    {
+      "view": "subscriptions",
+      "violations": []
+    },
+    {
+      "view": "admin",
+      "violations": []
+    },
+    {
+      "view": "dark-storefront",
+      "violations": []
+    },
+    {
+      "view": "dark-My orders",
+      "violations": []
+    },
+    {
+      "view": "dark-Point of sale",
+      "violations": []
+    },
+    {
+      "view": "dark-Kitchen orders",
+      "violations": []
+    },
+    {
+      "view": "dark-Subscriptions",
+      "violations": []
+    },
+    {
+      "view": "dark-Settings & admin",
+      "violations": []
+    },
+    {
+      "view": "thai-dark-storefront",
+      "violations": []
+    },
+    {
+      "view": "comfort-dialog",
+      "violations": []
+    },
+    {
+      "view": "high-contrast-large-storefront",
+      "violations": []
+    },
+    {
+      "view": "mobile-storefront",
+      "violations": []
+    }
+  ]
+}

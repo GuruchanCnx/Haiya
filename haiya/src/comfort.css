@@ -1,0 +1,535 @@
+/* Readability refinements verified with axe-core in both color themes. */
+:root {
+  --muted: #626c5d;
+}
+:root[data-theme="dark"] {
+  --muted: #b6c2ac;
+}
+[data-theme="dark"] .status-badge {
+  color: #c1d4ae;
+}
+[data-theme="dark"] .discount-line {
+  color: #abc895;
+}
+[data-theme="dark"] .contrast-swatch {
+  color: #172212;
+}
+.nav-item {
+  color: var(--muted);
+  font-size: 12px;
+}
+.nav-label,
+.section-kicker,
+.house-note > span,
+.language-button,
+.hero-eyebrow,
+.hero-footer,
+.product-meta,
+.empty-bag > p,
+.availability,
+.pay-note,
+.local-label,
+.allergen-note,
+.main-footer,
+.main-footer button,
+.subscription-banner p,
+.plan-price del {
+  color: var(--muted);
+}
+.hero p {
+  color: #606e54;
+}
+.hero-eyebrow,
+.hero-footer {
+  color: #5d6b51;
+}
+.hero-eyebrow {
+  font-size: 8px;
+}
+.hero p {
+  font-size: 12px;
+}
+.hero-footer {
+  font-size: 8px;
+}
+.hero .primary {
+  font-size: 11px;
+}
+.nav-label {
+  font-size: 9px;
+}
+.sidebar-intro {
+  font-size: 10px;
+}
+.house-note > span {
+  font-size: 8px;
+}
+.accessibility-link {
+  font-size: 10px;
+}
+.sidebar-status {
+  font-size: 9px;
+}
+.fresh-status {
+  font-size: 10px;
+}
+.promise-strip strong {
+  font-size: 11px;
+}
+.promise-strip small {
+  font-size: 9px;
+}
+.section-kicker {
+  font-size: 8px;
+}
+.section-heading p {
+  font-size: 10px;
+}
+.category-tabs button {
+  font-size: 10px;
+}
+.sort-button {
+  font-size: 9px;
+}
+.product-name {
+  font-size: 15px;
+}
+.product-info > p {
+  font-size: 10px;
+  min-height: 34px;
+}
+.product-meta {
+  font-size: 8px;
+}
+.product-bottom small {
+  font-size: 8px;
+}
+.product-tag {
+  font-size: 7px;
+}
+.product-volume {
+  font-size: 8px;
+}
+.add-button {
+  font-size: 10px;
+  min-width: 52px;
+  min-height: 32px;
+}
+.order-box-head > span {
+  font-size: 9px;
+}
+.pickup-only {
+  font-size: 9px;
+}
+.empty-bag > strong {
+  font-size: 10px;
+}
+.empty-bag > p {
+  font-size: 9px;
+}
+.pickup-section h4 {
+  font-size: 10px;
+}
+.pickup-fields label {
+  font-size: 9px;
+}
+.select-wrap select {
+  font-size: 10px;
+}
+.availability {
+  font-size: 8px;
+}
+.pay-note {
+  font-size: 8px;
+}
+.checkout-button {
+  font-size: 10px;
+}
+.order-total {
+  font-size: 11px;
+}
+.location-teaser strong {
+  font-size: 10px;
+}
+.location-teaser small {
+  font-size: 8px;
+}
+.local-label {
+  font-size: 8px;
+}
+.subscription-banner .section-kicker {
+  font-size: 7px;
+}
+.subscription-banner h3 {
+  font-size: 17px;
+}
+.subscription-banner p {
+  font-size: 9px;
+}
+.subscription-banner .text-button {
+  font-size: 10px;
+}
+.allergen-note,
+.main-footer,
+.main-footer button {
+  font-size: 8px;
+}
+.order-progress > div {
+  color: var(--muted);
+}
+.mobile-bag-bar {
+  display: none;
+}
+[data-theme="dark"] .nav-label,
+[data-theme="dark"] .section-kicker,
+[data-theme="dark"] .house-note > span,
+[data-theme="dark"] .hero-footer,
+[data-theme="dark"] .product-meta,
+[data-theme="dark"] .availability,
+[data-theme="dark"] .subscription-banner p,
+[data-theme="dark"] .main-footer,
+[data-theme="dark"] .main-footer button,
+[data-theme="dark"] .allergen-note,
+[data-theme="dark"] .local-label,
+[data-theme="dark"] .pay-note,
+[data-theme="dark"] .empty-bag > p,
+[data-theme="dark"] .language-button {
+  color: var(--muted);
+}
+[data-theme="dark"] .hero-eyebrow,
+[data-theme="dark"] .hero p {
+  color: #b2bea3;
+}
+[data-theme="dark"] .status-badge.ready {
+  background: #35442f;
+  color: #c1d4ae;
+}
+[data-contrast="true"] {
+  --muted: #394d31;
+}
+[data-theme="dark"][data-contrast="true"] {
+  --bg: #090e09;
+  --surface: #101910;
+  --surface-alt: #182518;
+  --text: #fff;
+  --muted: #d7e9cb;
+  --line: #a0b296;
+  --green: #b7da96;
+  --green-dark: #a3ca80;
+  --soft-green: #263b20;
+  color: var(--text);
+}
+[data-theme="dark"][data-contrast="true"]
+  :is(
+    p,
+    small,
+    .nav-label,
+    .section-kicker,
+    .main-footer,
+    .hero-eyebrow,
+    .hero-footer,
+    .allergen-note
+  ) {
+  color: var(--muted);
+}
+[data-theme="dark"][data-contrast="true"] .primary {
+  color: #0d2006;
+}
+@media (min-width: 1550px) {
+  .product-name {
+    font-size: 18px;
+  }
+  .product-info > p {
+    font-size: 11px;
+  }
+  .hero p {
+    font-size: 13px;
+  }
+  .hero-footer {
+    font-size: 9px;
+  }
+  .category-tabs button {
+    font-size: 11px;
+  }
+  .section-heading p {
+    font-size: 11px;
+  }
+  .pickup-only {
+    font-size: 10px;
+  }
+  .pickup-fields label {
+    font-size: 10px;
+  }
+  .select-wrap select {
+    font-size: 11px;
+  }
+  .checkout-button {
+    font-size: 11px;
+  }
+  .empty-bag > strong {
+    font-size: 11px;
+  }
+  .pay-note {
+    font-size: 9px;
+  }
+}
+@media (min-width: 761px) and (max-width: 1190px) {
+  .nav-item {
+    font-size: 11px;
+  }
+  .sidebar-intro {
+    font-size: 9px;
+  }
+  .accessibility-link {
+    font-size: 9px;
+  }
+  .hero h1 {
+    font-size: 34px;
+  }
+  .hero p {
+    font-size: 10px;
+  }
+  .hero-eyebrow {
+    font-size: 6px;
+  }
+  .hero-footer {
+    font-size: 7px;
+  }
+  .promise-strip strong {
+    font-size: 9px;
+  }
+  .promise-strip small {
+    font-size: 7px;
+  }
+  .section-heading p {
+    font-size: 8px;
+  }
+  .category-tabs button {
+    font-size: 8px;
+  }
+  .sort-button {
+    font-size: 7px;
+  }
+  .product-name {
+    font-size: 14px;
+  }
+  .product-info > p {
+    font-size: 9px;
+  }
+  .product-meta {
+    font-size: 7px;
+  }
+  .product-tag {
+    font-size: 6px;
+  }
+  .pickup-only {
+    font-size: 8px;
+  }
+  .location-teaser strong {
+    font-size: 9px;
+  }
+  .location-teaser small {
+    font-size: 7px;
+  }
+  .subscription-banner h3 {
+    font-size: 15px;
+  }
+}
+@media (max-width: 760px) {
+  .hero p {
+    font-size: 10px;
+  }
+  .hero-eyebrow {
+    font-size: 6px;
+  }
+  .hero-footer {
+    font-size: 7px;
+  }
+  .promise-strip strong {
+    font-size: 9px;
+  }
+  .promise-strip small {
+    font-size: 7px;
+  }
+  .product-name {
+    font-size: 13px;
+  }
+  .product-info > p {
+    font-size: 8px;
+  }
+  .product-meta {
+    font-size: 7px;
+  }
+  .product-tag {
+    font-size: 6px;
+  }
+  .category-tabs button {
+    font-size: 9px;
+  }
+  .sort-button {
+    font-size: 8px;
+  }
+  .nav-item {
+    font-size: 12px;
+  }
+  .sidebar-intro {
+    font-size: 10px;
+  }
+}
+@media (max-width: 600px) {
+  .hero p {
+    font-size: 12px;
+  }
+  .hero-eyebrow {
+    font-size: 7px;
+  }
+  .hero-footer {
+    font-size: 8px;
+  }
+  .hero .primary {
+    font-size: 11px;
+  }
+  .promise-strip strong {
+    font-size: 11px;
+  }
+  .promise-strip small {
+    font-size: 9px;
+  }
+  .product-name {
+    font-size: 15px;
+  }
+  .product-info > p {
+    font-size: 9px;
+  }
+  .product-meta {
+    font-size: 8px;
+  }
+  .product-bottom small {
+    font-size: 8px;
+  }
+  .add-button {
+    min-height: 34px;
+    font-size: 10px;
+  }
+  .section-heading p {
+    font-size: 10px;
+  }
+  .product-tag {
+    font-size: 6px;
+  }
+  .pickup-only {
+    font-size: 11px;
+  }
+  .pickup-fields label {
+    font-size: 10px;
+  }
+  .select-wrap select {
+    font-size: 10px;
+  }
+  .order-box-head > span {
+    font-size: 10px;
+  }
+  .empty-bag > strong {
+    font-size: 12px;
+  }
+  .empty-bag > p {
+    font-size: 10px;
+  }
+  .pickup-section h4 {
+    font-size: 12px;
+  }
+  .availability {
+    font-size: 9px;
+  }
+  .pay-note {
+    font-size: 9px;
+  }
+  .checkout-button {
+    font-size: 12px;
+  }
+  .location-teaser strong {
+    font-size: 11px;
+  }
+  .location-teaser small {
+    font-size: 9px;
+  }
+  .local-label {
+    font-size: 9px;
+  }
+  .subscription-banner h3 {
+    font-size: 17px;
+  }
+  .subscription-banner p {
+    font-size: 10px;
+  }
+  .allergen-note,
+  .main-footer,
+  .main-footer button {
+    font-size: 9px;
+  }
+  .mobile-bag-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    bottom: 12px;
+    left: 16px;
+    right: 16px;
+    z-index: 25;
+    padding: 12px 17px;
+    border: 1px solid #456849;
+    border-radius: 9px;
+    background: var(--green);
+    color: white;
+    box-shadow: 0 4px 20px #263e3333;
+    text-align: left;
+  }
+  .mobile-bag-bar > span {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .mobile-bag-bar > b {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .main-footer {
+    padding-bottom: 70px;
+  }
+  .sidebar {
+    overflow-y: auto;
+  }
+  .sidebar.mobile-open {
+    box-shadow: 10px 0 40px #162b2540;
+  }
+  .modal input,
+  .modal select,
+  .settings-panel input,
+  .settings-panel select {
+    font-size: 16px;
+  }
+  .modal-body .select-wrap select {
+    font-size: 13px;
+  }
+  .toast {
+    bottom: 77px;
+  }
+}
+[data-large="true"] .product-name {
+  font-size: 18px;
+}
+[data-large="true"] .hero p,
+[data-large="true"] .product-info > p,
+[data-large="true"] .section-heading p,
+[data-large="true"] .nav-item,
+[data-large="true"] .select-wrap select {
+  font-size: 14px;
+}
+[data-large="true"] .product-meta,
+[data-large="true"] .category-tabs button,
+[data-large="true"] .pickup-fields label,
+[data-large="true"] .allergen-note,
+[data-large="true"] .main-footer {
+  font-size: 12px;
+}

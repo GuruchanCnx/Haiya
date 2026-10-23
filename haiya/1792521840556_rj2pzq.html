@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="theme-color" content="#FFFBF5"/>
+<title>WANCHAI — Soy Milk House</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Noto+Sans+Thai:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config={darkMode:['selector','[data-theme="dark"]'],corePlugins:{preflight:false}}
+</script>
+<style>
+*{font-family:"Plus Jakarta Sans","Noto Sans Thai",system-ui,sans-serif; -webkit-font-smoothing:antialiased}
+h1,h2,.serif{font-family:"Fraunces","Noto Sans Thai",serif}
+:root{
+  --bg:#FFFBF5; --bg2:#FFF4E6; --fg:#231A12; --muted:#9B8A78; --line:rgba(35,26,18,0.08);
+  --accent:#E8A735; --accent2:#7A9E7E; --card:#FFFFFF; --glass:rgba(255,251,245,0.74);
+  --glass-strong:rgba(255,255,255,0.86); --shadow:0 12px 40px rgba(35,26,18,0.08);
+  --radius:24px; --focus:#E8A735;
+}
+[data-theme="dark"]{
+  --bg:#12110E; --bg2:#1D1B18; --fg:#F5EEE6; --muted:#A99B8C; --line:rgba(245,238,230,0.10);
+  --card:#1E1C19; --glass:rgba(30,28,25,0.72); --glass-strong:rgba(38,34,31,0.88);
+  --shadow:0 12px 40px rgba(0,0,0,0.4);
+}
+[data-high-contrast="true"]{ --bg:#000!important; --bg2:#000!important; --fg:#FFF!important; --muted:#FFF!important; --line:#FFF!important; --card:#000!important; --glass:#000!important; --glass-strong:#000!important; --accent:#FFFF00!important; --accent2:#00FFFF!important }
+[data-high-contrast="true"] *{ border-color:#FFF!important }
+[data-high-contrast="true"] button, [data-high-contrast="true"] a{ outline:2px solid #FFFF00!important; outline-offset:2px }
+html,body{background:var(--bg); color:var(--fg); min-height:100vh}
+.glass{ background:var(--glass); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border:1px solid var(--line); box-shadow:var(--shadow) }
+.glass-strong{ background:var(--glass-strong); backdrop-filter:blur(32px) saturate(180%); -webkit-backdrop-filter:blur(32px) saturate(180%); border:1px solid var(--line) }
+.dial-key{ height:72px; border-radius:22px; font-size:28px; font-weight:700; letter-spacing:-0.02em; transition:all .14s cubic-bezier(.2,.8,.2,1); user-select:none }
+.dial-key:active{ transform:scale(.94) }
+@media(min-width:768px){ .dial-key{ height:84px; font-size:32px } }
+.focus-ring:focus-visible{ outline:2px solid var(--focus); outline-offset:3px }
+.scrollbar-none::-webkit-scrollbar{display:none} .scrollbar-none{ -ms-overflow-style:none; scrollbar-width:none }
+.progress-line{ height:3px; background:var(--line); position:relative; overflow:hidden }
+.progress-line>span{ position:absolute; left:0; top:0; bottom:0; background:var(--accent2); transition:width .7s cubic-bezier(.2,.8,.2,1) }
+@keyframes shimmer{ 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+.shimmer:after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent); animation:shimmer 1.2s infinite }
+@media (horizontal-viewport-segments: 2){
+  .dual-aware{ flex-direction:row!important }
+  .dual-aware > *{ width:calc(env(viewport-segment-width 0 0) - 24px) }
+}
+</style>
+</head>
+<body data-theme="light" data-high-contrast="false">
+<div id="offline-banner" class="hidden fixed top-0 inset-x-0 z-[100] bg-[#231A12] text-white text-[13px] font-medium tracking-wide py-2.5 px-4 flex items-center justify-center gap-2">
+  <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span><span data-i18n="offline_banner">You are offline — orders will sync when back online. Menu cached for low connectivity.</span>
+</div>
+
+<header class="sticky top-0 z-40 backdrop-blur-[20px] border-b" style="background:color-mix(in srgb,var(--glass) 92%, transparent); border-color:var(--line)">
+  <div class="max-w-[1280px] mx-auto px-4 md:px-6 h-[64px] flex items-center justify-between gap-3">
+    <div class="flex items-center gap-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-[12px] bg-[#231A12] dark:bg-[#F5EEE6] text-[#FFFBF5] dark:text-[#12110E] grid place-items-center font-bold text-[16px] tracking-tight">W</div>
+        <div class="leading-[1.05]">
+          <div class="serif font-bold text-[18px] tracking-[-0.02em]">WANCHAI</div>
+          <div class="text-[10px] tracking-[0.18em] uppercase opacity-60 font-semibold" data-i18n="tagline">Soy Milk House</div>
+        </div>
+      </div>
+      <nav class="hidden md:flex items-center gap-1 p-1 rounded-full glass">
+        <button data-view="customer" class="nav-btn px-4 h-8 rounded-full text-[13px] font-semibold bg-[#231A12] text-white dark:bg-white dark:text-black" data-i18n="nav_menu">Menu</button>
+        <button data-view="pos" class="nav-btn px-4 h-8 rounded-full text-[13px] font-medium opacity-70 hover:opacity-100" data-i18n="nav_pos">POS</button>
+        <button data-view="admin" class="nav-btn px-4 h-8 rounded-full text-[13px] font-medium opacity-70 hover:opacity-100" data-i18n="nav_admin">Admin</button>
+      </nav>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="hidden md:flex items-center gap-1 p-1 rounded-full glass">
+        <button id="lang-en" class="px-3 h-7 rounded-full text-[12px] font-bold bg-[#231A12] text-white">EN</button>
+        <button id="lang-th" class="px-3 h-7 rounded-full text-[12px] font-bold opacity-60">TH</button>
+      </div>
+      <button id="theme-toggle" class="w-9 h-9 rounded-full glass grid place-items-center focus-ring" aria-label="theme">◐</button>
+      <button id="cart-btn" class="h-9 px-3 rounded-full bg-[#E8A735] text-[#231A12] font-bold text-[13px] flex items-center gap-1.5 focus-ring">
+        <span>◍</span><span id="cart-count">0</span>
+      </button>
+      <button id="mobile-menu" class="md:hidden w-9 h-9 rounded-full glass grid place-items-center">≡</button>
+    </div>
+  </div>
+  <div id="mobile-nav" class="hidden md:hidden border-t px-4 py-3 flex gap-2" style="border-color:var(--line); background:var(--glass)">
+    <button data-view="customer" class="nav-btn flex-1 h-10 rounded-full bg-[#231A12] text-white text-[13px] font-semibold">Menu</button>
+    <button data-view="pos" class="nav-btn flex-1 h-10 rounded-full glass text-[13px]">POS</button>
+    <button data-view="admin" class="nav-btn flex-1 h-10 rounded-full glass text-[13px]">Admin</button>
+    <button id="lang-toggle-m" class="w-10 h-10 rounded-full glass text-[12px] font-bold">EN/TH</button>
+  </div>
+</header>
+
+<main class="max-w-[1280px] mx-auto px-4 md:px-6 pb-24">
+  <!-- CUSTOMER VIEW -->
+  <div id="customer-view">
+    <div class="mt-6 grid lg:grid-cols-[1.15fr_.85fr] gap-4 items-start">
+      <div class="glass rounded-[28px] p-5 md:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-2 text-[11px] tracking-[0.16em] uppercase font-bold px-2.5 py-1 rounded-full bg-[#7A9E7E] text-white" data-i18n="pickup_badge">Single Pickup Only</div>
+            <h1 class="serif text-[30px] md:text-[40px] leading-[0.95] tracking-[-0.03em] mt-3" data-i18n="pickup_title">Pick up at our only house in Hai Ya</h1>
+            <p class="mt-3 text-[14px] leading-[1.6] opacity-70 max-w-[44ch]" data-i18n="pickup_desc">We keep it simple — one kitchen, one pickup spot, brewed fresh every morning. No delivery, just warm bottles waiting for you.</p>
+          </div>
+          <div class="hidden md:grid w-[88px] h-[88px] rounded-[20px] bg-[#231A12] text-[#FFFBF5] place-items-center text-[36px]">⌖</div>
+        </div>
+        <div class="mt-5 grid sm:grid-cols-[1fr_auto] gap-3 items-stretch">
+          <div class="rounded-[18px] bg-[var(--bg2)] p-4 border" style="border-color:var(--line)">
+            <div class="text-[11px] tracking-[0.14em] uppercase font-bold opacity-60" data-i18n="pickup_label">Pickup Spot</div>
+            <div class="mt-1 font-semibold text-[14px] leading-[1.4]" id="pickup-address">บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา Tambon Hai Ya, เมือง Chiang Mai 50100</div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span class="text-[11px] px-2.5 py-1 rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black" data-i18n="open_daily">Open daily 6:30 — 15:00</span>
+              <span class="text-[11px] px-2.5 py-1 rounded-full glass" data-i18n="cache_status">● Menu cached • Images cached via Workbox</span>
+            </div>
+          </div>
+          <div class="rounded-[18px] overflow-hidden border relative min-h-[140px] bg-[#E8E0D6]" style="border-color:var(--line)">
+            <img src="https://images.unsplash.com/photo-1526772661823-3f88f33771cd?w=600" class="absolute inset-0 w-full h-full object-cover opacity-70"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+            <div class="absolute bottom-2 left-2 right-2 glass-strong rounded-[12px] px-3 py-2 flex items-center justify-between">
+              <span class="text-[12px] font-semibold">Hai Ya, Chiang Mai</span><button id="open-maps" class="text-[11px] font-bold underline" data-i18n="open_maps">Open Maps</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="order-tracker-card" class="glass rounded-[28px] p-5 md:p-6">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-[14px] tracking-wide" data-i18n="track_title">Track Your Order</h3>
+          <span id="sw-status" class="text-[10px] px-2 py-1 rounded-full bg-[#7A9E7E]/20 text-[#7A9E7E] font-bold">SW: checking…</span>
+        </div>
+        <div id="order-status-root" class="mt-4">
+          <div class="text-[13px] opacity-60 py-10 text-center" data-i18n="no_active_order">No active order yet. Place an order to track it here.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 flex items-center justify-between">
+      <h2 class="serif text-[26px] tracking-[-0.02em]" data-i18n="menu_title">Today's Brew</h2>
+      <div class="flex items-center gap-2 text-[11px] font-semibold opacity-60"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span data-i18n="fresh_brewed">Fresh brewed • Low connectivity ready</span></div>
+    </div>
+    <div id="menu-grid" class="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4"></div>
+  </div>
+
+  <!-- POS VIEW -->
+  <div id="pos-view" class="hidden">
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <h2 class="serif text-[26px]" data-i18n="pos_title">POS — Large Dial Pad</h2>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] px-2.5 py-1 rounded-full glass"><span data-i18n="haptic">Haptic</span>: <b id="pos-haptic-label">Soft Tap</b></span>
+        <button id="pos-clear" class="h-9 px-4 rounded-full glass text-[12px] font-semibold" data-i18n="clear">Clear</button>
+      </div>
+    </div>
+    <div class="mt-4 grid lg:grid-cols-[1fr_380px] gap-4 items-start">
+      <div class="space-y-4">
+        <div class="glass rounded-[24px] p-3 flex gap-2 overflow-x-auto scrollbar-none" id="pos-quick-products"></div>
+        <div class="glass rounded-[32px] p-4 md:p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-[12px] opacity-60 font-semibold tracking-wide uppercase" data-i18n="enter_qty">Enter quantity / code</div>
+            <div id="pos-display" class="text-[28px] font-bold tracking-[-0.02em] min-w-[120px] text-right">0</div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 max-w-[420px] mx-auto" id="dial-pad"></div>
+          <div class="mt-4 grid grid-cols-3 gap-3 max-w-[420px] mx-auto">
+            <button data-dial="clear" class="dial-key glass text-[16px]" data-i18n="clear">Clear</button>
+            <button data-dial="0" class="dial-key glass">0</button>
+            <button data-dial="enter" class="dial-key bg-[#231A12] text-white dark:bg-white dark:text-black">↵</button>
+          </div>
+        </div>
+      </div>
+      <div class="glass rounded-[28px] p-5 flex flex-col min-h-[520px]">
+        <div class="flex items-center justify-between"><h3 class="font-bold" data-i18n="cart_title">Cart</h3><span id="pos-total" class="serif text-[22px] font-bold">฿0</span></div>
+        <div id="pos-cart-list" class="mt-4 space-y-2 flex-1 overflow-auto"></div>
+        <button id="pos-checkout" class="mt-4 h-[52px] rounded-full bg-[#E8A735] text-[#231A12] font-bold text-[15px] focus-ring" data-i18n="charge">Charge ฿0</button>
+        <div class="mt-3 text-[11px] opacity-60 text-center" data-i18n="pos_hint">Tap product, then dial quantity, then Enter. Haptic feedback confirms.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="admin-view" class="hidden">
+    <div class="mt-6 flex gap-4">
+      <aside class="hidden lg:flex w-[240px] shrink-0 flex-col gap-2">
+        <div class="glass rounded-[20px] p-3">
+          <div class="text-[11px] font-bold tracking-[0.14em] uppercase opacity-60 mb-2" data-i18n="admin_menu">Admin</div>
+          <nav class="space-y-1" id="admin-nav">
+            <button data-admin="dashboard" class="admin-tab w-full text-left px-3 h-9 rounded-full bg-[#231A12] text-white text-[13px] font-semibold">Dashboard</button>
+            <button data-admin="inventory" class="admin-tab w-full text-left px-3 h-9 rounded-full hover:bg-[var(--bg2)] text-[13px]">Inventory</button>
+            <button data-admin="editor" class="admin-tab w-full text-left px-3 h-9 rounded-full hover:bg-[var(--bg2)] text-[13px]">Content Editor</button>
+            <button data-admin="pos" class="admin-tab w-full text-left px-3 h-9 rounded-full hover:bg-[var(--bg2)] text-[13px]">POS Haptics</button>
+            <button data-admin="a11y" class="admin-tab w-full text-left px-3 h-9 rounded-full hover:bg-[var(--bg2)] text-[13px]">Accessibility</button>
+            <button data-admin="diag" class="admin-tab w-full text-left px-3 h-9 rounded-full hover:bg-[var(--bg2)] text-[13px]">Diagnostics</button>
+          </nav>
+          <div class="mt-4 pt-4 border-t" style="border-color:var(--line)">
+            <label class="flex items-center justify-between gap-2 text-[12px] font-semibold cursor-pointer">
+              <span data-i18n="high_contrast">High Contrast</span>
+              <input id="hc-toggle" type="checkbox" class="w-9 h-5 accent-[#E8A735]"/>
+            </label>
+            <div class="mt-3 text-[11px] opacity-60" data-i18n="hc_desc">Forces high-contrast for color-impaired & elderly users.</div>
+          </div>
+        </div>
+        <div class="glass rounded-[20px] p-4">
+          <div class="text-[12px] font-bold" data-i18n="pickup_spot_admin">Pickup Spot</div>
+          <div class="mt-1 text-[12px] leading-[1.4] opacity-80">บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา Tambon Hai Ya, เมือง Chiang Mai 50100</div>
+          <div class="mt-2 text-[10px] px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-700 inline-block">Single location locked</div>
+        </div>
+      </aside>
+      <div class="flex-1 min-w-0 space-y-4">
+        <!-- Dashboard -->
+        <section data-admin-panel="dashboard" class="space-y-4">
+          <div class="grid md:grid-cols-3 gap-3">
+            <div class="glass rounded-[20px] p-5"><div class="text-[11px] uppercase tracking-wide opacity-60 font-bold" data-i18n="today_orders">Today Orders</div><div class="serif text-[32px] font-bold mt-1" id="stat-orders">0</div></div>
+            <div class="glass rounded-[20px] p-5"><div class="text-[11px] uppercase tracking-wide opacity-60 font-bold" data-i18n="low_stock">Low Stock Items</div><div class="serif text-[32px] font-bold mt-1" id="stat-low">0</div></div>
+            <div class="glass rounded-[20px] p-5"><div class="text-[11px] uppercase tracking-wide opacity-60 font-bold">Workbox Cache</div><div class="text-[13px] mt-2 leading-[1.5]" id="cache-info">Images: 0 • Menu: cached</div></div>
+          </div>
+          <div class="glass rounded-[24px] p-5">
+            <div class="flex items-center justify-between"><h3 class="font-bold" data-i18n="quick_actions">Quick Actions</h3><span class="text-[11px] opacity-60" data-i18n="pwa_ready">PWA ready</span></div>
+            <div class="mt-4 grid sm:grid-cols-3 gap-2">
+              <button id="simulate-ready" class="h-11 rounded-full bg-[#7A9E7E] text-white font-semibold text-[13px]">Simulate Ready → Chime</button>
+              <button id="simulate-401" class="h-11 rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black font-semibold text-[13px]">Trigger 401 Auth Error</button>
+              <button id="run-a11y" class="h-11 rounded-full glass font-semibold text-[13px]" data-i18n="run_audit">Run Accessibility Audit</button>
+            </div>
+          </div>
+        </section>
+        <!-- Inventory -->
+        <section data-admin-panel="inventory" class="hidden space-y-4">
+          <div class="glass rounded-[24px] p-5">
+            <div class="flex items-center justify-between"><h3 class="font-bold text-[18px]" data-i18n="inventory_title">Inventory & Stock</h3><button id="add-product-btn" class="h-9 px-4 rounded-full bg-[#231A12] text-white text-[12px] font-semibold" data-i18n="add_product">Add Product</button></div>
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full text-[13px]"><thead class="text-[11px] uppercase opacity-60"><tr><th class="text-left py-2" data-i18n="product">Product</th><th class="text-left" data-i18n="stock">Stock</th><th class="text-left" data-i18n="price">Price</th><th class="text-left">Status</th><th></th></tr></thead><tbody id="inventory-tbody"></tbody></table>
+            </div>
+          </div>
+        </section>
+        <!-- Editor -->
+        <section data-admin-panel="editor" class="hidden space-y-4">
+          <div class="glass rounded-[24px] p-5">
+            <h3 class="font-bold text-[18px]" data-i18n="editor_title">Rich Text Editor + Photo Upload</h3>
+            <div class="mt-4 flex flex-wrap gap-2" id="editor-toolbar">
+              <button data-cmd="bold" class="h-8 px-3 rounded-full glass text-[13px] font-bold">B</button>
+              <button data-cmd="italic" class="h-8 px-3 rounded-full glass text-[13px] italic">I</button>
+              <button data-cmd="insertUnorderedList" class="h-8 px-3 rounded-full glass text-[13px]">• List</button>
+              <label class="h-8 px-3 rounded-full bg-[#E8A735] text-[#231A12] font-semibold text-[13px] grid place-items-center cursor-pointer"><input id="editor-image" type="file" accept="image/*" class="hidden"/><span data-i18n="upload_photo">Upload Photo</span></label>
+              <button id="editor-save" class="h-8 px-4 rounded-full bg-[#231A12] text-white text-[12px] font-semibold" data-i18n="save_content">Save Content</button>
+            </div>
+            <div id="editor" contenteditable="true" class="mt-4 min-h-[220px] rounded-[18px] bg-[var(--bg2)] border p-4 text-[14px] leading-[1.7] focus:outline-none" style="border-color:var(--line)"><p><b>WANCHAI Soy Milk House</b> — brewed at บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา</p><p>Our soy milk is stone-ground daily, low sugar, high protein. One pickup spot only.</p><p>Upload a photo to tell our story.</p></div>
+            <div id="editor-preview" class="mt-4 rounded-[18px] border p-4 glass" style="border-color:var(--line)"></div>
+          </div>
+        </section>
+        <!-- POS Haptics -->
+        <section data-admin-panel="pos" class="hidden space-y-4">
+          <div class="glass rounded-[24px] p-6">
+            <h3 class="font-bold text-[18px]" data-i18n="haptics_title">POS Dial Pad Haptics Configuration</h3>
+            <p class="mt-1 text-[13px] opacity-70" data-i18n="haptics_desc">Customize vibration patterns for tactile feedback. Updates global haptic state used by POS dial pad.</p>
+            <div class="mt-6 grid md:grid-cols-2 gap-6">
+              <div class="space-y-4">
+                <div class="text-[12px] font-bold tracking-wide uppercase opacity-60" data-i18n="select_pattern">Select Pattern</div>
+                <div class="grid gap-2" id="haptic-options">
+                  <label class="flex items-center gap-3 p-3 rounded-[14px] border cursor-pointer" style="border-color:var(--line)"><input type="radio" name="haptic" value="soft" checked/><div><div class="font-semibold text-[13px]" data-i18n="soft_tap">Soft Tap — [20ms]</div><div class="text-[11px] opacity-60" data-i18n="soft_desc">Gentle, ideal for elderly</div></div></label>
+                  <label class="flex items-center gap-3 p-3 rounded-[14px] border cursor-pointer" style="border-color:var(--line)"><input type="radio" name="haptic" value="strong"/><div><div class="font-semibold text-[13px]" data-i18n="strong_click">Strong Click — [50ms]</div><div class="text-[11px] opacity-60" data-i18n="strong_desc">Firm confirmation</div></div></label>
+                  <label class="flex items-center gap-3 p-3 rounded-[14px] border cursor-pointer" style="border-color:var(--line)"><input type="radio" name="haptic" value="double"/><div><div class="font-semibold text-[13px]" data-i18n="double_pulse">Double Pulse — [20,30,40]</div><div class="text-[11px] opacity-60" data-i18n="double_desc">Double tap rhythm</div></div></label>
+                </div>
+                <div class="space-y-3 pt-2">
+                  <label class="block"><span class="text-[12px] font-semibold" data-i18n="duration">Duration Multiplier</span><input id="haptic-duration" type="range" min="10" max="100" value="20" class="w-full accent-[#E8A735]"/></label>
+                  <label class="block"><span class="text-[12px] font-semibold" data-i18n="intensity">Intensity (simulated)</span><input id="haptic-intensity" type="range" min="0.5" max="2" step="0.1" value="1" class="w-full accent-[#7A9E7E]"/></label>
+                </div>
+                <button id="test-haptic" class="h-10 px-5 rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black text-[13px] font-semibold" data-i18n="test_vibration">Test Vibration</button>
+              </div>
+              <div class="rounded-[18px] bg-[var(--bg2)] border p-4" style="border-color:var(--line)">
+                <div class="text-[12px] font-bold uppercase opacity-60" data-i18n="live_preview">Live Dial Preview</div>
+                <div class="mt-4 grid grid-cols-3 gap-2 max-w-[280px] mx-auto" id="haptic-preview-pad"></div>
+                <div class="mt-4 text-[11px] font-mono p-3 rounded-[12px] bg-black text-white" id="haptic-json">{"pattern":"soft","duration":20,"intensity":1}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- A11y -->
+        <section data-admin-panel="a11y" class="hidden space-y-4">
+          <div class="glass rounded-[24px] p-6">
+            <div class="flex items-center justify-between"><h3 class="font-bold text-[18px]" data-i18n="a11y_title">Visual Accessibility Inspector</h3><span class="text-[11px] px-2.5 py-1 rounded-full bg-[#E8A735] text-[#231A12] font-bold" data-i18n="elderly_mode">Elderly Compliance</span></div>
+            <p class="mt-2 text-[13px] opacity-70" data-i18n="a11y_desc">Checks color contrast ratios on all interactive components to ensure WCAG AA (4.5:1) for elderly users.</p>
+            <div id="a11y-results" class="mt-5 grid gap-2"></div>
+          </div>
+        </section>
+        <!-- Diagnostics -->
+        <section data-admin-panel="diag" class="hidden space-y-4">
+          <div class="glass rounded-[24px] p-6">
+            <h3 class="font-bold text-[18px]" data-i18n="diag_title">Auth Diagnostics & Error Logs</h3>
+            <div class="mt-4 grid md:grid-cols-2 gap-4">
+              <div class="rounded-[16px] bg-[var(--bg2)] border p-3" style="border-color:var(--line)">
+                <div class="text-[11px] font-bold uppercase opacity-60" data-i18n="auth_logs">useAuthDiagnostic() logs</div>
+                <div id="auth-logs" class="mt-2 max-h-[260px] overflow-auto rounded-[10px] bg-[var(--card)] border" style="border-color:var(--line)"></div>
+                <div class="mt-3 flex gap-2">
+                  <button id="login-sim" class="h-8 px-3 rounded-full bg-[#7A9E7E] text-white text-[11px] font-semibold">Simulate Login</button>
+                  <button id="logout-sim" class="h-8 px-3 rounded-full glass text-[11px] font-semibold">Logout</button>
+                </div>
+              </div>
+              <div class="rounded-[16px] bg-[var(--bg2)] border p-3" style="border-color:var(--line)">
+                <div class="text-[11px] font-bold uppercase opacity-60">Global 401 Handler Logs (Firestore)</div>
+                <div id="error-logs" class="mt-2 max-h-[260px] overflow-auto text-[11px] font-mono leading-[1.5]"></div>
+                <div class="mt-2 text-[10px] opacity-60">Intercepts 401 Unauthorized, logs context: timestamp, endpoint, user, request payload for debugging.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- CART SIDEBAR -->
+<div id="cart-drawer" class="fixed inset-0 z-50 hidden">
+  <div id="cart-backdrop" class="absolute inset-0 bg-black/30 backdrop-blur-[2px]"></div>
+  <div class="absolute right-0 top-0 bottom-0 w-[92%] max-w-[400px] glass-strong rounded-l-[28px] p-5 flex flex-col">
+    <div class="flex items-center justify-between"><h3 class="font-bold text-[18px]" data-i18n="cart_title">Cart</h3><button id="cart-close" class="w-9 h-9 rounded-full glass grid place-items-center">✕</button></div>
+    <div id="cart-list" class="mt-5 flex-1 overflow-auto space-y-3"></div>
+    <div class="pt-4 border-t mt-4 space-y-3" style="border-color:var(--line)">
+      <div class="flex justify-between text-[13px]"><span class="opacity-60" data-i18n="subtotal">Subtotal</span><b id="cart-subtotal">฿0</b></div>
+      <div class="flex justify-between text-[13px]"><span class="opacity-60" data-i18n="pickup_fee">Pickup (one spot)</span><b>฿0</b></div>
+      <button id="checkout-btn" class="w-full h-[52px] rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black font-bold text-[15px]" data-i18n="checkout">Checkout → Review</button>
+      <div class="text-[11px] text-center opacity-60" data-i18n="pickup_note">Pickup at บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา</div>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER SUMMARY MODAL (liquid-glass, dual-screen aware) -->
+<div id="order-summary-modal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-[#231A12]/20 backdrop-blur-[12px]" id="summary-backdrop"></div>
+  <div class="absolute inset-0 p-4 grid place-items-center">
+    <div class="dual-aware modal-inner w-full max-w-[720px] glass-strong rounded-[28px] overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.24)] flex flex-col max-h-[90vh]">
+      <div class="p-6 md:p-8 flex-1 overflow-auto">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-2 text-[11px] font-bold tracking-[0.14em] uppercase px-2.5 py-1 rounded-full bg-[#E8A735] text-[#231A12]" data-i18n="review_order">Review Order</div>
+            <h2 class="serif text-[28px] leading-[0.95] tracking-[-0.02em] mt-3" data-i18n="order_summary_title">Order Summary</h2>
+            <p class="mt-2 text-[13px] opacity-70" data-i18n="double_check">Double-check items before placing. Single pickup spot locked.</p>
+          </div>
+          <button id="summary-close" class="w-9 h-9 rounded-full glass grid place-items-center">✕</button>
+        </div>
+        <div class="mt-6 grid md:grid-cols-[1.2fr_.8fr] gap-6">
+          <div id="summary-items" class="space-y-3"></div>
+          <div class="space-y-3">
+            <div class="rounded-[16px] bg-[var(--bg2)] border p-4" style="border-color:var(--line)">
+              <div class="text-[11px] font-bold uppercase opacity-60" data-i18n="pickup_spot">Pickup Spot</div>
+              <div class="mt-1 text-[13px] font-semibold leading-[1.4]">บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา Tambon Hai Ya, เมือง Chiang Mai 50100</div>
+              <div class="mt-2 text-[11px] opacity-60" data-i18n="no_other_spot">No other pickup locations — this is our only house.</div>
+            </div>
+            <div class="rounded-[16px] bg-[var(--bg2)] border p-4" style="border-color:var(--line)">
+              <div class="flex justify-between text-[13px]"><span data-i18n="subtotal">Subtotal</span><b id="summary-subtotal">฿0</b></div>
+              <div class="flex justify-between text-[13px] mt-1"><span data-i18n="total">Total</span><b id="summary-total" class="serif text-[18px]">฿0</b></div>
+            </div>
+            <div class="text-[11px] opacity-60 leading-[1.5]" data-i18n="audio_note">🔔 A soft chime will play when order is placed & when Ready for Pickup.</div>
+          </div>
+        </div>
+      </div>
+      <div class="p-4 md:p-5 border-t flex gap-3" style="border-color:var(--line); background:var(--glass)">
+        <button id="summary-cancel" class="flex-1 h-[48px] rounded-full glass font-semibold text-[14px]" data-i18n="back">Back</button>
+        <button id="summary-confirm" class="flex-1 h-[48px] rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black font-bold text-[14px]" data-i18n="confirm_place">Confirm & Place Order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SESSION EXPIRED MODAL (uses ToastProvider layout logic) -->
+<div id="session-modal" class="fixed inset-0 z-[70] hidden">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-[8px]"></div>
+  <div class="absolute inset-0 grid place-items-center p-4">
+    <div class="w-full max-w-[420px] glass-strong rounded-[24px] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
+      <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-full bg-red-500 text-white grid place-items-center font-bold">!</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-[16px]" data-i18n="session_expired_title">Session Expired</h3>
+          <p class="mt-1 text-[13px] leading-[1.5] opacity-80" data-i18n="session_expired_desc">Your login session expired or authentication failed. Please log in again to continue.</p>
+          <div id="session-context" class="mt-3 text-[11px] font-mono p-2 rounded-[10px] bg-red-500/10 border border-red-500/20"></div>
+          <div class="mt-4 flex gap-2">
+            <button id="session-login" class="flex-1 h-11 rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black font-bold text-[13px]" data-i18n="login_again">Login Again</button>
+            <button id="session-close" class="h-11 px-5 rounded-full glass text-[13px] font-semibold" data-i18n="dismiss">Dismiss</button>
+          </div>
+          <div class="mt-3 text-[10px] opacity-50" data-i18n="session_hint">This modal uses ToastProvider layout logic & global 401 handler.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toast-container" class="fixed bottom-4 right-4 left-4 md:left-auto z-[80] flex flex-col gap-2 pointer-events-none max-w-[380px] md:ml-auto"></div>
+
+<script>
+/* ================= I18N ================= */
+const i18n = {
+en:{
+brand:"WANCHAI", tagline:"Soy Milk House",
+pickup_badge:"Single Pickup Only", pickup_title:"Pick up at our only house in Hai Ya", pickup_desc:"We keep it simple — one kitchen, one pickup spot, brewed fresh every morning. No delivery, just warm bottles waiting for you.",
+pickup_label:"Pickup Spot", open_daily:"Open daily 6:30 — 15:00", cache_status:"● Menu cached • Images cached via Workbox", open_maps:"Open Maps",
+track_title:"Track Your Order", no_active_order:"No active order yet. Place an order to track it here.",
+menu_title:"Today's Brew", fresh_brewed:"Fresh brewed • Low connectivity ready",
+nav_menu:"Menu", nav_pos:"POS", nav_admin:"Admin",
+cart_title:"Cart", checkout:"Checkout → Review", subtotal:"Subtotal", pickup_fee:"Pickup (one spot)", pickup_note:"Pickup at บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา",
+review_order:"Review Order", order_summary_title:"Order Summary", double_check:"Double-check items before placing. Single pickup spot locked.",
+pickup_spot:"Pickup Spot", no_other_spot:"No other pickup locations — this is our only house.", total:"Total", audio_note:"🔔 A soft chime will play when order is placed & when Ready for Pickup.",
+back:"Back", confirm_place:"Confirm & Place Order",
+pos_title:"POS — Large Dial Pad", haptic:"Haptic", clear:"Clear", enter_qty:"Enter quantity / code", charge:"Charge", pos_hint:"Tap product, then dial quantity, then Enter. Haptic feedback confirms.",
+admin_menu:"Admin", pickup_spot_admin:"Pickup Spot", today_orders:"Today Orders", low_stock:"Low Stock Items", quick_actions:"Quick Actions", pwa_ready:"PWA ready", run_audit:"Run Accessibility Audit",
+inventory_title:"Inventory & Stock", add_product:"Add Product", product:"Product", stock:"Stock", price:"Price",
+editor_title:"Rich Text Editor + Photo Upload", upload_photo:"Upload Photo", save_content:"Save Content",
+haptics_title:"POS Dial Pad Haptics Configuration", haptics_desc:"Customize vibration patterns for tactile feedback. Updates global haptic state used by POS dial pad.",
+select_pattern:"Select Pattern", soft_tap:"Soft Tap — [20ms]", soft_desc:"Gentle, ideal for elderly", strong_click:"Strong Click — [50ms]", strong_desc:"Firm confirmation", double_pulse:"Double Pulse — [20,30,40]", double_desc:"Double tap rhythm",
+duration:"Duration Multiplier", intensity:"Intensity (simulated)", test_vibration:"Test Vibration", live_preview:"Live Dial Preview",
+a11y_title:"Visual Accessibility Inspector", elderly_mode:"Elderly Compliance", a11y_desc:"Checks color contrast ratios on all interactive components to ensure WCAG AA (4.5:1) for elderly users.",
+diag_title:"Auth Diagnostics & Error Logs", auth_logs:"useAuthDiagnostic() logs",
+offline_banner:"You are offline — orders will sync when back online. Menu cached for low connectivity.", back_online:"Back online — syncing…", offline_mode:"Offline mode — using cached menu & images",
+session_expired_title:"Session Expired", session_expired_desc:"Your login session expired or authentication failed. Please log in again to continue.", login_again:"Login Again", dismiss:"Dismiss", session_hint:"This modal uses ToastProvider layout logic & global 401 handler.",
+high_contrast:"High Contrast", hc_desc:"Forces high-contrast for color-impaired & elderly users.",
+order_placed:"Order placed! Soft chime played.", ready_for_pickup:"Ready for Pickup — chime!",
+received:"Received", preparing:"Preparing", ready:"Ready for Pickup",
+share_order:"Share Order", copy_id:"Copy ID", copied:"Copied ID to clipboard",
+add:"Add", out_of_stock:"Out of stock", track_order:"Track", added:"Added to cart"
+},
+th:{
+brand:"WANCHAI", tagline:"โรงน้ำเต้าหู้",
+pickup_badge:"จุดรับเดียวเท่านั้น", pickup_title:"รับที่บ้านหลังเดียวของเราในหายยา", pickup_desc:"เราทำให้เรียบง่าย — ครัวเดียว จุดรับเดียว ต้มสดทุกเช้า ไม่มีเดลิเวอรี มีแต่น้ำเต้าหู้อุ่นๆ รอคุณอยู่",
+pickup_label:"จุดรับสินค้า", open_daily:"เปิดทุกวัน 6:30 — 15:00", cache_status:"● เมนูแคชแล้ว • รูปภาพแคชผ่าน Workbox", open_maps:"เปิดแผนที่",
+track_title:"ติดตามออเดอร์", no_active_order:"ยังไม่มีออเดอร์ที่ใช้งาน วางออเดอร์เพื่อติดตามที่นี่",
+menu_title:"เมนูวันนี้", fresh_brewed:"ต้มสดใหม่ • พร้อมใช้งานออฟไลน์",
+nav_menu:"เมนู", nav_pos:"POS", nav_admin:"แอดมิน",
+cart_title:"ตะกร้า", checkout:"ชำระเงิน → ตรวจสอบ", subtotal:"ยอดรวมย่อย", pickup_fee:"รับที่ร้าน (จุดเดียว)", pickup_note:"รับที่ บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา",
+review_order:"ตรวจสอบออเดอร์", order_summary_title:"สรุปออเดอร์", double_check:"ตรวจสอบรายการอีกครั้งก่อนยืนยัน จุดรับเดียวล็อกแล้ว",
+pickup_spot:"จุดรับสินค้า", no_other_spot:"ไม่มีจุดรับอื่น — นี่คือบ้านหลังเดียวของเรา", total:"รวมทั้งหมด", audio_note:"🔔 จะมีเสียงกระดิ่งนุ่มเมื่อสั่งสำเร็จและเมื่อพร้อมรับ",
+back:"กลับ", confirm_place:"ยืนยันและสั่งเลย",
+pos_title:"POS — แป้นกดขนาดใหญ่", haptic:"การสั่น", clear:"ล้าง", enter_qty:"ใส่จำนวน / รหัส", charge:"เรียกเก็บ", pos_hint:"แตะสินค้า แล้วกดจำนวน แล้วกด Enter มีการสั่นยืนยัน",
+admin_menu:"แอดมิน", pickup_spot_admin:"จุดรับ", today_orders:"ออเดอร์วันนี้", low_stock:"สินค้าใกล้หมด", quick_actions:"การกระทำด่วน", pwa_ready:"PWA พร้อม", run_audit:"รันตรวจการเข้าถึง",
+inventory_title:"คลัง & สต็อก", add_product:"เพิ่มสินค้า", product:"สินค้า", stock:"สต็อก", price:"ราคา",
+editor_title:"โปรแกรมแก้ไข Rich Text + อัปโหลดรูป", upload_photo:"อัปโหลดรูป", save_content:"บันทึกเนื้อหา",
+haptics_title:"ตั้งค่าการสั่นแป้น POS", haptics_desc:"ปรับรูปแบบการสั่นเพื่อตอบสนองสัมผัส อัปเดตสถานะ haptic ทั่วแอปที่ใช้ในแป้น POS",
+select_pattern:"เลือกรูปแบบ", soft_tap:"แตะนุ่ม — [20ms]", soft_desc:"อ่อนโยน เหมาะกับผู้สูงอายุ", strong_click:"คลิกแรง — [50ms]", strong_desc:"ยืนยันชัดเจน", double_pulse:"พัลส์คู่ — [20,30,40]", double_desc:"จังหวะแตะสองครั้ง",
+duration:"ตัวคูณระยะเวลา", intensity:"ความเข้ม (จำลอง)", test_vibration:"ทดสอบการสั่น", live_preview:"พรีวิวแป้นสด",
+a11y_title:"ตัวตรวจสอบการเข้าถึงด้วยภาพ", elderly_mode:"รองรับผู้สูงอายุ", a11y_desc:"ตรวจสอบอัตราส่วนคอนทราสต์สีบนส่วนประกอบโต้ตอบทั้งหมดเพื่อให้เป็นไปตาม WCAG AA (4.5:1) สำหรับผู้สูงอายุ",
+diag_title:"วินิจฉัยการยืนยันตัวตน & บันทึกข้อผิดพลาด", auth_logs:"บันทึก useAuthDiagnostic()",
+offline_banner:"คุณออฟไลน์ — ออเดอร์จะซิงค์เมื่อกลับออนไลน์ เมนูถูกแคชแล้ว", back_online:"กลับออนไลน์แล้ว — กำลังซิงค์…", offline_mode:"โหมดออฟไลน์ — ใช้เมนูและรูปภาพที่แคชไว้",
+session_expired_title:"เซสชันหมดอายุ", session_expired_desc:"เซสชันเข้าสู่ระบบของคุณหมดอายุหรือการยืนยันตัวตนล้มเหลว กรุณาเข้าสู่ระบบอีกครั้ง", login_again:"เข้าสู่ระบบอีกครั้ง", dismiss:"ปิด", session_hint:"โมดัลนี้ใช้เลย์เอาต์ ToastProvider และตัวจัดการ 401 ส่วนกลาง",
+high_contrast:"คอนทราสต์สูง", hc_desc:"บังคับโหมดคอนทราสต์สูงสำหรับผู้บกพร่องทางสีและผู้สูงอายุ",
+order_placed:"สั่งออเดอร์แล้ว! เล่นเสียงกระดิ่งนุ่ม", ready_for_pickup:"พร้อมรับแล้ว — เสียงกระดิ่ง!",
+received:"ได้รับแล้ว", preparing:"กำลังเตรียม", ready:"พร้อมรับ",
+share_order:"แชร์ออเดอร์", copy_id:"คัดลอก ID", copied:"คัดลอก ID แล้ว",
+add:"เพิ่ม", out_of_stock:"หมดสต็อก", track_order:"ติดตาม", added:"เพิ่มลงตะกร้าแล้ว"
+}
+};
+let currentLang = localStorage.getItem('wanchai_lang')||'en';
+function t(k){ return (i18n[currentLang]&&i18n[currentLang][k])||i18n.en[k]||k; }
+
+/* ================= STATE ================= */
+let currentTheme = localStorage.getItem('wanchai_theme')||'light';
+let highContrast = localStorage.getItem('wanchai_hc')==='true';
+let hapticConfig = JSON.parse(localStorage.getItem('wanchai_haptic')||'{"pattern":"soft","customDuration":20,"intensity":1}');
+let cart = JSON.parse(localStorage.getItem('wanchai_cart')||'[]');
+let orders = JSON.parse(localStorage.getItem('wanchai_orders')||'[]');
+let activeOrder = JSON.parse(localStorage.getItem('wanchai_active')||'null');
+let currentView='customer';
+let posDisplay='0'; let posSelectedProduct=null;
+let currentUser = JSON.parse(localStorage.getItem('wanchai_user')||'null');
+let authListeners=[];
+
+const PICKUP_ADDRESS = "บ้านไชยวุฒิเครื่องเงิน 16 ถนน หายยา Tambon Hai Ya, เมือง Chiang Mai 50100";
+
+const products = [
+{id:'original', name_en:'Original Soy Milk', name_th:'น้ำเต้าหู้สูตรดั้งเดิม', price:35, stock:48, image:'https://images.unsplash.com/photo-1544148103-05eecbf10d58?w=500', desc_en:'Creamy, lightly sweetened • 350ml', desc_th:'หอมมัน หวานน้อย • 350มล.'},
+{id:'blacksesame', name_en:'Black Sesame Soy', name_th:'น้ำเต้าหู้งาดำ', price:45, stock:32, image:'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=500', desc_en:'Roasted black sesame blend', desc_th:'หอมงาดำคั่ว'},
+{id:'matcha', name_en:'Matcha Soy Latte', name_th:'มัทฉะลาเต้น้ำเต้าหู้', price:65, stock:20, image:'https://images.unsplash.com/photo-1515825838458-f2a94b20105a?w=500', desc_en:'Uji matcha + soy • unsweetened', desc_th:'มัทฉะอุจิแท้ ไม่หวาน'},
+{id:'ginger', name_en:'Ginger Brown Sugar', name_th:'น้ำเต้าหู้ขิงน้ำตาลทรายแดง', price:40, stock:15, image:'https://images.unsplash.com/photo-1544787219-7f47cc556762?w=500', desc_en:'Warming ginger kick', desc_th:'เผ็ดร้อนจากขิงสด'},
+{id:'tofu_pudding', name_en:'Tofu Pudding', name_th:'เต้าฮวย', price:30, stock:25, image:'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=500', desc_en:'Silky douhua with ginger syrup', desc_th:'เนื้อนุ่มละมุน น้ำขิง'},
+{id:'youtiao', name_en:'Youtiao (2pcs)', name_th:'ปาท่องโก๋ 2 ชิ้น', price:25, stock:60, image:'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500', desc_en:'Crispy dough sticks', desc_th:'กรอบนอกนุ่มใน'},
+];
+
+/* ================= THEME & LANG ================= */
+function applyTheme(){ document.body.setAttribute('data-theme', currentTheme); document.body.setAttribute('data-high-contrast', highContrast?'true':'false'); document.querySelector('meta[name="theme-color"]').content = currentTheme==='dark'?'#12110E':'#FFFBF5'; localStorage.setItem('wanchai_theme', currentTheme); localStorage.setItem('wanchai_hc', highContrast); document.getElementById('hc-toggle').checked = highContrast; }
+function applyLang(){ document.getElementById('lang-en').className = currentLang==='en' ? 'px-3 h-7 rounded-full text-[12px] font-bold bg-[#231A12] text-white dark:bg-white dark:text-black' : 'px-3 h-7 rounded-full text-[12px] font-bold opacity-60'; document.getElementById('lang-th').className = currentLang==='th' ? 'px-3 h-7 rounded-full text-[12px] font-bold bg-[#231A12] text-white dark:bg-white dark:text-black' : 'px-3 h-7 rounded-full text-[12px] font-bold opacity-60'; document.getElementById('lang-toggle-m').textContent = currentLang.toUpperCase(); document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(i18n[currentLang][k]) el.textContent = t(k); }); localStorage.setItem('wanchai_lang', currentLang); renderAll(); }
+
+/* ================= AUDIO FEEDBACK ================= */
+let audioCtx=null;
+function playChime(type='success'){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    function tone(freq, start, dur, vol=0.28){
+      const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+      o.type='sine'; o.frequency.value=freq; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0, start); g.gain.linearRampToValueAtTime(vol, start+0.04); g.gain.exponentialRampToValueAtTime(0.001, start+dur);
+      o.start(start); o.stop(start+dur);
+    }
+    if(type==='success'){ tone(660, now, 0.7); tone(880, now+0.12, 0.6, 0.22); }
+    else { tone(880, now, 0.6); tone(1108.73, now+0.12, 0.8, 0.24); }
+  }catch(e){ console.log('audio blocked',e); }
+}
+
+/* ================= HAPTIC ================= */
+function triggerHaptic(){
+  if(!navigator.vibrate) return;
+  const base = {soft:[hapticConfig.customDuration||20], strong:[50], double:[20,30,40]};
+  let pat = base[hapticConfig.pattern]||base.soft;
+  pat = pat.map(v=> Math.max(5, Math.round(v*(hapticConfig.intensity||1))));
+  navigator.vibrate(pat);
+}
+
+/* ================= TOAST PROVIDER + OFFLINE BANNER ================= */
+function showToast(msg, type='info', duration=4000){
+  const cont = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `glass pointer-events-auto px-4 py-3 rounded-[16px] flex items-center gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.12)] translate-y-2 opacity-0 transition-all duration-300`;
+  el.innerHTML = `<div class="w-8 h-8 rounded-full grid place-items-center text-[14px] font-bold ${type==='error'?'bg-red-500 text-white':type==='success'?'bg-[#7A9E7E] text-white':'bg-[#E8A735] text-[#231A12]'}">${type==='error'?'!':type==='success'?'✓':'i'}</div><div class="text-[13px] font-medium leading-[1.3]">${msg}</div>`;
+  cont.appendChild(el);
+  requestAnimationFrame(()=> el.classList.remove('translate-y-2','opacity-0'));
+  setTimeout(()=>{ el.classList.add('opacity-0','translate-y-2'); setTimeout(()=>el.remove(),300); }, duration);
+}
+window.addEventListener('online',()=>{ document.getElementById('offline-banner').classList.add('hidden'); showToast(t('back_online'),'success'); updateSWStatus(); });
+window.addEventListener('offline',()=>{ document.getElementById('offline-banner').classList.remove('hidden'); showToast(t('offline_mode'),'error',6000); });
+if(!navigator.onLine) document.getElementById('offline-banner').classList.remove('hidden');
+
+/* ================= AUTH DIAGNOSTIC HOOK ================= */
+function useAuthDiagnostic(){
+  return {
+    currentUser,
+    onAuthStateChanged(cb){ authListeners.push(cb); cb(currentUser); return ()=>{ authListeners=authListeners.filter(f=>f!==cb); }; },
+    logSessionChange(event){ logAuthEvent(event,'info'); }
+  };
+}
+function logAuthEvent(msg, type='info'){
+  const logs = document.getElementById('auth-logs'); if(!logs) return;
+  const entry = document.createElement('div');
+  entry.className='text-[11px] font-mono py-1.5 px-2 border-b border-black/5 dark:border-white/5 flex justify-between';
+  entry.innerHTML=`<span>${new Date().toLocaleTimeString()} — ${msg}</span><span class="opacity-50">${type}</span>`;
+  logs.prepend(entry);
+}
+function setUser(user){
+  currentUser=user; localStorage.setItem('wanchai_user', JSON.stringify(user));
+  authListeners.forEach(cb=>cb(user));
+  logAuthEvent(`User changed: ${user?user.uid:'signed out'}`);
+}
+function addErrorLog(err){
+  const el = document.getElementById('error-logs'); if(!el) return;
+  const div = document.createElement('div');
+  div.className='py-2 border-b border-black/5';
+  div.innerHTML=`<div class="font-bold text-red-600">[401] ${err.message}</div><div class="opacity-70">ts: ${new Date().toISOString()} | endpoint: firestore.googleapis.com/v1/projects/wanchai-soymilk/documents/orders | user: ${currentUser?.uid||'anonymous'} | context: ${err.message}</div>`;
+  el.prepend(div);
+}
+
+/* ================= GLOBAL 401 HANDLER ================= */
+window.addEventListener('unhandledrejection', e=>{
+  if(e.reason && (e.reason.status===401 || (e.reason.message&&e.reason.message.includes('401')))){
+    const msg = e.reason.message||'Unauthorized';
+    console.error('[Auth Error] 401 Unauthorized', {timestamp:new Date().toISOString(), endpoint:'firestore.googleapis.com/v1/projects/wanchai-soymilk', context:msg, user:currentUser?.uid||'anonymous', request: e.reason.request||'unknown'});
+    addErrorLog({message:msg}); logAuthEvent('Unhandled 401: '+msg,'error'); showSessionExpired(msg); e.preventDefault();
+  }
+});
+function simulate401(){
+  const err = {status:401, message:'Firebase: Session expired (auth/id-token-expired) — token refresh failed'};
+  console.error('[Auth Error] 401 Unauthorized', {timestamp:new Date().toISOString(), endpoint:'firestore.googleapis.com/v1/projects/wanchai-soymilk/documents/orders/'+(activeOrder?.id||'new'), context:err.message, user:currentUser?.uid||'anonymous', payload:{orderId:activeOrder?.id||'pending'}});
+  addErrorLog(err); logAuthEvent('401 at firestore read - token expired','error'); showSessionExpired(err.message);
+}
+function showSessionExpired(context){
+  document.getElementById('session-context').textContent = context||'';
+  document.getElementById('session-modal').classList.remove('hidden');
+}
+function hideSessionExpired(){ document.getElementById('session-modal').classList.add('hidden'); }
+
+/* ================= SERVICE WORKER WITH WORKBOX ================= */
+let swRegistration=null;
+async function registerSW(){
+  if(!('serviceWorker' in navigator)) return;
+  const swCode = `
+importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.5.4/workbox-sw.js');
+const {registerRoute} = workbox.routing;
+const {CacheFirst, StaleWhileRevalidate} = workbox.strategies;
+const {ExpirationPlugin} = workbox.expiration;
+registerRoute(({request})=> request.destination==='image', new CacheFirst({cacheName:'wanchai-images', plugins:[new ExpirationPlugin({maxEntries:80, maxAgeSeconds:30*24*60*60})]}));
+registerRoute(({url})=> url.href.includes('unsplash') || url.pathname.includes('products') || url.pathname.includes('menu'), new StaleWhileRevalidate({cacheName:'wanchai-menu', plugins:[new ExpirationPlugin({maxEntries:30, maxAgeSeconds:7*24*60*60})]}));
+self.addEventListener('install', e=> self.skipWaiting());
+self.addEventListener('activate', e=> self.clients.claim());
+`;
+  try{
+    const blob = new Blob([swCode], {type:'application/javascript'});
+    const url = URL.createObjectURL(blob);
+    swRegistration = await navigator.serviceWorker.register(url, {scope:'./'});
+    updateSWStatus();
+    navigator.serviceWorker.addEventListener('message', e=>{ console.log('SW msg', e.data); });
+  }catch(err){ console.warn('SW failed', err); document.getElementById('sw-status').textContent='SW: failed'; }
+}
+async function updateSWStatus(){
+  const el = document.getElementById('sw-status'); if(!el) return;
+  if(!navigator.serviceWorker.controller) { el.textContent = navigator.onLine ? 'SW: installing…' : 'SW: offline ready'; return; }
+  try{
+    if('caches' in window){
+      const imgCache = await caches.open('wanchai-images'); const keys = await imgCache.keys(); 
+      const menuCache = await caches.open('wanchai-menu'); const menuKeys = await menuCache.keys();
+      el.textContent = `SW: active • Images ${keys.length} • Menu ${menuKeys.length}`;
+      document.getElementById('cache-info').textContent = `Images: ${keys.length} • Menu: ${menuKeys.length} cached • Offline ready`;
+    } else { el.textContent='SW: active'; }
+  }catch{ el.textContent='SW: active'; }
+}
+
+/* ================= RENDERING ================= */
+function productName(p){ return currentLang==='th'?p.name_th:p.name_en; }
+function productDesc(p){ return currentLang==='th'?p.desc_th:p.desc_en; }
+
+function renderMenu(){
+  const grid = document.getElementById('menu-grid'); grid.innerHTML='';
+  products.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='group glass rounded-[22px] overflow-hidden flex flex-col hover:shadow-[0_16px_40px_rgba(0,0,0,0.10)] transition-all duration-300';
+    card.innerHTML=`
+      <div class="relative h-[160px] overflow-hidden bg-[var(--bg2)]">
+        <img src="${p.image}" alt="${productName(p)}" loading="lazy" class="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-700"/>
+        <div class="absolute top-2.5 left-2.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#231A12] backdrop-blur">${p.stock<=15?`⚠ ${p.stock} left`:`${p.stock} in stock`}</div>
+        <div class="absolute top-2.5 right-2.5 text-[12px] font-bold px-2.5 py-1 rounded-full bg-[#231A12] text-white">฿${p.price}</div>
+      </div>
+      <div class="p-4 flex flex-col flex-1">
+        <div class="font-bold text-[14px] leading-[1.2]">${productName(p)}</div>
+        <div class="text-[12px] opacity-60 mt-1 leading-[1.4]">${productDesc(p)}</div>
+        <div class="mt-auto pt-4 flex gap-2">
+          <button data-add="${p.id}" class="flex-1 h-9 rounded-full bg-[#231A12] text-white dark:bg-white dark:text-black text-[13px] font-semibold focus-ring">${p.stock>0?t('add'):`${t('out_of_stock')}`}</button>
+          <button data-quick="${p.id}" class="w-9 h-9 rounded-full glass grid place-items-center text-[14px]">＋</button>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+  grid.querySelectorAll('[data-add]').forEach(b=> b.addEventListener('click',()=> addToCart(b.getAttribute('data-add'),1)));
+  grid.querySelectorAll('[data-quick]').forEach(b=> b.addEventListener('click',()=> addToCart(b.getAttribute('data-quick'),1,true)));
+}
+
+function renderCart(){
+  const list = document.getElementById('cart-list'); const posList = document.getElementById('pos-cart-list');
+  const subtotal = cart.reduce((s,i)=> s + i.price*i.qty, 0);
+  document.getElementById('cart-count').textContent = cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('cart-subtotal').textContent = `฿${subtotal}`;
+  document.getElementById('pos-total').textContent = `฿${subtotal}`;
+  document.getElementById('pos-checkout').textContent = `${t('charge')} ฿${subtotal}`;
+  [list, posList].forEach(container=>{
+    if(!container) return; container.innerHTML='';
+    if(cart.length===0){ container.innerHTML=`<div class="text-[13px] opacity-50 text-center py-10">${currentLang==='th'?'ตะกร้าว่าง':'Cart is empty'}</div>`; return; }
+    cart.forEach(item=>{
+      const row = document.createElement('div');
+      row.className='flex gap-3 items-center rounded-[14px] bg-[var(--bg2)] border p-2.5'; row.style.borderColor='var(--line)';
+      row.innerHTML=`<img src="${item.image}" class="w-12 h-12 rounded-[10px] object-cover"/><div class="flex-1 min-w-0"><div class="font-semibold text-[13px] truncate">${currentLang==='th'?item.name_th:item.name_en}</div><div class="text-[11px] opacity-60">฿${item.price} × ${item.qty}</div></div><div class="flex items-center gap-1"><button data-dec="${item.id}" class="w-7 h-7 rounded-full glass grid place-items-center">−</button><span class="text-[12px] font-bold w-5 text-center">${item.qty}</span><button data-inc="${item.id}" class="w-7 h-7 rounded-full glass grid place-items-center">＋</button></div>`;
+      container.appendChild(row);
+    });
+    container.querySelectorAll('[data-inc]').forEach(b=> b.addEventListener('click',()=> updateQty(b.getAttribute('data-inc'),1)));
+    container.querySelectorAll('[data-dec]').forEach(b=> b.addEventListener('click',()=> updateQty(b.getAttribute('data-dec'),-1)));
+  });
+}
+
+function renderOrderStatus(){
+  const root = document.getElementById('order-status-root');
+  if(!activeOrder){ root.innerHTML=`<div class="text-[13px] opacity-60 py-10 text-center">${t('no_active_order')}</div>`; return; }
+  const steps = [t('received'), t('preparing'), t('ready')];
+  const idx = {Received:0, Preparing:1, Ready:2}[activeOrder.status] ?? 0;
+  root.innerHTML=`
+    <div class="rounded-[16px] bg-[var(--bg2)] border p-4" style="border-color:var(--line)">
+      <div class="flex items-center justify-between"><div class="text-[12px] font-bold">#${activeOrder.id.slice(-6).toUpperCase()}</div><div class="text-[11px] px-2 py-1 rounded-full bg-[#7A9E7E] text-white">${activeOrder.status}</div></div>
+      <div class="mt-4 relative">
+        <div class="progress-line rounded-full"><span style="width:${(idx/2)*100}%"></span></div>
+        <div class="mt-3 grid grid-cols-3 gap-2 text-[11px] font-semibold">
+          ${steps.map((s,i)=> `<div class="${i<=idx?'opacity-100':'opacity-40'} flex items-center gap-1.5"><span class="w-5 h-5 rounded-full grid place-items-center text-[10px] ${i<=idx?'bg-[#7A9E7E] text-white':'bg-[var(--line)]'}">${i<idx?'✓':i+1}</span>${s}</div>`).join('')}
+        </div>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <button id="share-order-btn" class="flex-1 h-9 rounded-full glass text-[12px] font-semibold">↗ ${t('share_order')}</button>
+        <button id="copy-order-btn" class="h-9 px-4 rounded-full glass text-[12px] font-semibold">${t('copy_id')}</button>
+      </div>
+      <div class="mt-3 text-[11px] opacity-60">${t('pickup_note')}</div>
+    </div>
+    <div class="mt-3 space-y-2">${activeOrder.items.map(i=> `<div class="flex justify-between text-[12px]"><span>${currentLang==='th'?i.name_th:i.name_en} ×${i.qty}</span><b>฿${i.price*i.qty}</b></div>`).join('')}</div>
+  `;
+  document.getElementById('share-order-btn')?.addEventListener('click', shareOrder);
+  document.getElementById('copy-order-btn')?.addEventListener('click', copyOrderId);
+}
+
+function renderPOS(){
+  const quick = document.getElementById('pos-quick-products'); quick.innerHTML='';
+  products.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='shrink-0 h-[64px] min-w-[96px] rounded-[16px] glass flex flex-col items-center justify-center gap-1 p-2 focus-ring';
+    b.innerHTML=`<img src="${p.image}" class="w-8 h-8 rounded-full object-cover"/><span class="text-[11px] font-semibold leading-[1.1] text-center line-clamp-1">${productName(p).split(' ')[0]}</span>`;
+    b.addEventListener('click',()=>{ posSelectedProduct=p; posDisplay='1'; updatePOSDisplay(); triggerHaptic(); });
+    quick.appendChild(b);
+  });
+  const pad = document.getElementById('dial-pad'); pad.innerHTML='';
+  [1,2,3,4,5,6,7,8,9].forEach(n=>{
+    const btn=document.createElement('button'); btn.className='dial-key glass focus-ring'; btn.textContent=n; btn.setAttribute('data-dial',n);
+    btn.addEventListener('click',()=>{ handleDial(n.toString()); });
+    pad.appendChild(btn);
+  });
+  document.querySelectorAll('[data-dial]').forEach(b=>{
+    if(b.parentElement.id!=='dial-pad') b.addEventListener('click',()=> handleDial(b.getAttribute('data-dial')));
+  });
+  const preview = document.getElementById('haptic-preview-pad'); if(preview){ preview.innerHTML=''; [1,2,3,4,5,6,7,8,9].forEach(n=>{ const btn=document.createElement('button'); btn.className='dial-key glass text-[16px]'; btn.textContent=n; btn.addEventListener('click',()=>{ triggerHaptic(); }); preview.appendChild(btn); }); }
+  document.getElementById('pos-haptic-label').textContent = {soft:t('soft_tap'), strong:t('strong_click'), double:t('double_pulse')}[hapticConfig.pattern]||t('soft_tap');
+  updatePOSDisplay();
+}
+function handleDial(val){
+  if(val==='clear'){ posDisplay='0'; }
+  else if(val==='enter'){
+    if(posSelectedProduct){
+      const qty = parseInt(posDisplay)||1;
+      addToCart(posSelectedProduct.id, qty); posDisplay='0'; posSelectedProduct=null; showToast(`${t('added')} ×${qty}`,'success'); triggerHaptic();
+    }
+  } else {
+    if(posDisplay==='0') posDisplay=val; else if(posDisplay.length<3) posDisplay+=val;
+  }
+  updatePOSDisplay(); triggerHaptic();
+}
+function updatePOSDisplay(){ document.getElementById('pos-display').textContent = posDisplay; }
+
+function renderInventory(){
+  const tbody=document.getElementById('inventory-tbody'); tbody.innerHTML='';
+  products.forEach(p=>{
+    const tr=document.createElement('tr'); tr.className='border-b'; tr.style.borderColor='var(--line)';
+    tr.innerHTML=`<td class="py-3 flex items-center gap-2"><img src="${p.image}" class="w-8 h-8 rounded-full object-cover"/><span class="font-semibold">${productName(p)}</span></td><td><input data-stock="${p.id}" type="number" value="${p.stock}" class="w-20 h-8 rounded-full bg-[var(--bg2)] border px-3 text-[12px]" style="border-color:var(--line)"/></td><td>฿${p.price}</td><td><span class="text-[11px] px-2 py-1 rounded-full ${p.stock<=15?'bg-red-500/20 text-red-600':'bg-emerald-500/20 text-emerald-700'}">${p.stock<=15?'Low':'OK'}</span></td><td><button data-del="${p.id}" class="text-[11px] underline opacity-60">Del</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-stock]').forEach(inp=> inp.addEventListener('change', e=>{ const id=e.target.getAttribute('data-stock'); const prod=products.find(x=>x.id===id); if(prod){ prod.stock=parseInt(e.target.value)||0; localStorage.setItem('wanchai_products', JSON.stringify(products)); renderAll(); } }));
+  document.getElementById('stat-low').textContent = products.filter(p=>p.stock<=15).length;
+}
+function renderA11y(results){
+  const container=document.getElementById('a11y-results'); container.innerHTML='';
+  if(!results || results.length===0){ container.innerHTML=`<div class="text-[13px] opacity-60">${t('run_audit')} to see results</div>`; return; }
+  results.forEach(r=>{
+    const div=document.createElement('div'); div.className=`flex items-center justify-between p-3 rounded-[12px] border ${r.passesAA?'bg-emerald-500/10 border-emerald-500/20':'bg-red-500/10 border-red-500/20'}`; div.style.borderColor='var(--line)';
+    div.innerHTML=`<div><div class="font-semibold text-[12px]">${r.el}</div><div class="text-[11px] opacity-60">Ratio ${r.ratio}:1 — ${r.passesAA?'PASS AA':'FAIL'} ${r.passesAAA?'• AAA':''}</div></div><div class="text-[11px] font-bold px-2 py-1 rounded-full ${r.passesAA?'bg-emerald-600 text-white':'bg-red-600 text-white'}">${r.passesAA?'✓':'!'}</div>`;
+    container.appendChild(div);
+  });
+}
+function runAccessibilityAudit(){
+  const interactive = document.querySelectorAll('button, a, [role="button"], input');
+  const results=[];
+  function parseColor(str){
+    if(!str||str==='transparent') return null;
+    const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if(!m) return null; return {r:parseInt(m[1]),g:parseInt(m[2]),b:parseInt(m[3])};
+  }
+  function luminance(r,g,b){
+    const a=[r,g,b].map(v=>{ v/=255; return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+    return 0.2126*a[0]+0.7152*a[1]+0.0722*a[2];
+  }
+  function contrast(c1,c2){ const L1=luminance(c1.r,c1.g,c1.b); const L2=luminance(c2.r,c2.g,c2.b); const hi=Math.max(L1,L2), lo=Math.min(L1,L2); return (hi+0.05)/(lo+0.05); }
+  interactive.forEach(el=>{
+    const style=getComputedStyle(el);
+    if(style.display==='none'||style.visibility==='hidden') return;
+    const bg=parseColor(style.backgroundColor)||parseColor(getComputedStyle(document.body).backgroundColor)||{r:255,g:251,b:245};
+    const fg=parseColor(style.color); if(!fg) return;
+    const ratio=contrast(bg,fg);
+    results.push({el: (el.textContent||el.getAttribute('aria-label')||el.tagName).slice(0,32), ratio:ratio.toFixed(2), passesAA:ratio>=4.5, passesAAA:ratio>=7, element:el});
+  });
+  renderA11y(results);
+  showToast(`Audit done: ${results.filter(r=>r.passesAA).length}/${results.length} pass AA`,'info');
+}
+
+/* ================= CART LOGIC ================= */
+function addToCart(id, qty=1, silent=false){
+  const prod=products.find(p=>p.id===id); if(!prod||prod.stock<=0) return;
+  const existing=cart.find(c=>c.id===id);
+  if(existing) existing.qty+=qty; else cart.push({...prod, qty});
+  prod.stock=Math.max(0,prod.stock-qty);
+  persistCart(); renderCart(); renderMenu(); renderInventory();
+  if(!silent) showToast(`${productName(prod)} ×${qty} — ${t('added')}`,'success');
+}
+function updateQty(id, delta){
+  const item=cart.find(c=>c.id===id); if(!item) return;
+  const prod=products.find(p=>p.id===id);
+  if(delta>0){ if(prod.stock<=0) { showToast(t('out_of_stock'),'error'); return; } item.qty+=delta; prod.stock-=delta; }
+  else { item.qty+=delta; prod.stock-=delta; if(item.qty<=0) cart=cart.filter(c=>c.id!==id); }
+  persistCart(); renderCart(); renderMenu(); renderInventory();
+}
+function persistCart(){ localStorage.setItem('wanchai_cart', JSON.stringify(cart)); localStorage.setItem('wanchai_products', JSON.stringify(products)); document.getElementById('stat-orders').textContent = orders.length; }
+
+/* ================= ORDER FLOW ================= */
+function openOrderSummary(){
+  if(cart.length===0) return;
+  const itemsEl=document.getElementById('summary-items'); itemsEl.innerHTML='';
+  let subtotal=0;
+  cart.forEach(i=>{ subtotal+=i.price*i.qty; const div=document.createElement('div'); div.className='flex gap-3 items-center rounded-[14px] bg-[var(--bg2)] border p-3'; div.style.borderColor='var(--line)'; div.innerHTML=`<img src="${i.image}" class="w-12 h-12 rounded-[10px] object-cover"/><div class="flex-1"><div class="font-semibold text-[13px]">${productName(i)}</div><div class="text-[11px] opacity-60">฿${i.price} × ${i.qty}</div></div><b class="text-[13px]">฿${i.price*i.qty}</b>`; itemsEl.appendChild(div); });
+  document.getElementById('summary-subtotal').textContent=`฿${subtotal}`; document.getElementById('summary-total').textContent=`฿${subtotal}`;
+  document.getElementById('order-summary-modal').classList.remove('hidden');
+}
+function placeOrder(){
+  const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const order={id:'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), items:[...cart], total:subtotal, status:'Received', createdAt:new Date().toISOString(), pickup:PICKUP_ADDRESS};
+  orders.unshift(order); activeOrder=order;
+  localStorage.setItem('wanchai_orders', JSON.stringify(orders)); localStorage.setItem('wanchai_active', JSON.stringify(activeOrder));
+  cart=[]; persistCart(); renderCart(); renderOrderStatus(); document.getElementById('order-summary-modal').classList.add('hidden'); document.getElementById('cart-drawer').classList.add('hidden');
+  playChime('success'); showToast(t('order_placed'),'success'); triggerHaptic();
+  // Simulate status progression
+  setTimeout(()=>{ if(activeOrder && activeOrder.id===order.id){ activeOrder.status='Preparing'; localStorage.setItem('wanchai_active', JSON.stringify(activeOrder)); renderOrderStatus(); } }, 4000);
+  setTimeout(()=>{ if(activeOrder && activeOrder.id===order.id){ activeOrder.status='Ready'; playChime('ready'); showToast(t('ready_for_pickup'),'success',6000); triggerHaptic(); localStorage.setItem('wanchai_active', JSON.stringify(activeOrder)); renderOrderStatus(); } }, 9000);
+  document.getElementById('stat-orders').textContent = orders.length;
+}
+
+/* ================= SHARE ================= */
+async function shareOrder(){
+  if(!activeOrder) return;
+  const text = `WANCHAI Order #${activeOrder.id.slice(-6).toUpperCase()} — ${activeOrder.status} — Pickup: ${PICKUP_ADDRESS} — Total ฿${activeOrder.total}`;
+  const url = location.href.split('#')[0] + `#order-${activeOrder.id}`;
+  try{
+    if(navigator.share){ await navigator.share({title:'WANCHAI Order', text, url}); showToast('Shared!','success'); }
+    else { await navigator.clipboard.writeText(text+' '+url); showToast(t('copied'),'success'); }
+  }catch{ await navigator.clipboard.writeText(text); showToast(t('copied'),'success'); }
+}
+async function copyOrderId(){
+  if(!activeOrder) return;
+  await navigator.clipboard.writeText(activeOrder.id); showToast(t('copied'),'success');
+}
+
+/* ================= EDITOR ================= */
+function initEditor(){
+  const toolbar=document.getElementById('editor-toolbar');
+  toolbar.querySelectorAll('[data-cmd]').forEach(btn=> btn.addEventListener('click',()=>{ document.execCommand(btn.getAttribute('data-cmd'), false, null); document.getElementById('editor').focus(); }));
+  document.getElementById('editor-image').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=`<img src="${ev.target.result}" style="max-width:100%; border-radius:16px; margin:12px 0"/>`;
+      document.execCommand('insertHTML', false, img);
+      document.getElementById('editor-preview').innerHTML = document.getElementById('editor').innerHTML;
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('editor').addEventListener('input',()=>{ document.getElementById('editor-preview').innerHTML=document.getElementById('editor').innerHTML; });
+  document.getElementById('editor-save').addEventListener('click',()=>{ localStorage.setItem('wanchai_content', document.getElementById('editor').innerHTML); showToast('Content saved (Firestore mock)','success'); });
+  const saved=localStorage.getItem('wanchai_content'); if(saved){ document.getElementById('editor').innerHTML=saved; document.getElementById('editor-preview').innerHTML=saved; }
+}
+
+/* ================= HAPTIC CONFIG ================= */
+function initHaptics(){
+  const radios=document.querySelectorAll('input[name="haptic"]');
+  radios.forEach(r=>{ if(r.value===hapticConfig.pattern) r.checked=true; r.addEventListener('change', e=>{ hapticConfig.pattern=e.target.value; saveHaptic(); }); });
+  document.getElementById('haptic-duration').value=hapticConfig.customDuration||20;
+  document.getElementById('haptic-intensity').value=hapticConfig.intensity||1;
+  document.getElementById('haptic-duration').addEventListener('input', e=>{ hapticConfig.customDuration=parseInt(e.target.value); saveHaptic(); });
+  document.getElementById('haptic-intensity').addEventListener('input', e=>{ hapticConfig.intensity=parseFloat(e.target.value); saveHaptic(); });
+  document.getElementById('test-haptic').addEventListener('click',()=>{ triggerHaptic(); showToast(`Vibration: ${hapticConfig.pattern} ${hapticConfig.customDuration}ms ×${hapticConfig.intensity}`,'info'); });
+  saveHaptic();
+}
+function saveHaptic(){
+  localStorage.setItem('wanchai_haptic', JSON.stringify(hapticConfig));
+  document.getElementById('haptic-json').textContent = JSON.stringify(hapticConfig);
+  document.getElementById('pos-haptic-label').textContent = {soft:t('soft_tap'), strong:t('strong_click'), double:t('double_pulse')}[hapticConfig.pattern]||hapticConfig.pattern;
+}
+
+/* ================= NAV & INIT ================= */
+function switchView(view){
+  currentView=view;
+  document.getElementById('customer-view').classList.toggle('hidden', view!=='customer');
+  document.getElementById('pos-view').classList.toggle('hidden', view!=='pos');
+  document.getElementById('admin-view').classList.toggle('hidden', view!=='admin');
+  document.querySelectorAll('.nav-btn').forEach(b=>{ const v=b.getAttribute('data-view'); if(v===view){ b.classList.add('bg-[#231A12]','text-white','dark:bg-white','dark:text-black'); b.classList.remove('opacity-70'); } else { b.classList.remove('bg-[#231A12]','text-white','dark:bg-white','dark:text-black'); b.classList.add('opacity-70'); } });
+}
+function switchAdmin(tab){
+  document.querySelectorAll('[data-admin-panel]').forEach(p=> p.classList.toggle('hidden', p.getAttribute('data-admin-panel')!==tab));
+  document.querySelectorAll('.admin-tab').forEach(b=>{ if(b.getAttribute('data-admin')===tab){ b.classList.add('bg-[#231A12]','text-white'); } else { b.classList.remove('bg-[#231A12]','text-white'); } });
+}
+
+function renderAll(){
+  renderMenu(); renderCart(); renderOrderStatus(); renderPOS(); renderInventory(); applyTheme(); document.getElementById('stat-orders').textContent = orders.length; document.getElementById('stat-low').textContent = products.filter(p=>p.stock<=15).length;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  // Load persisted products
+  const savedProds = localStorage.getItem('wanchai_products'); if(savedProds){ try{ const parsed=JSON.parse(savedProds); if(Array.isArray(parsed)&&parsed.length) { parsed.forEach((sp,i)=>{ if(products[i]) products[i].stock=sp.stock; }); } }catch{} }
+  applyTheme(); applyLang(); renderAll(); initEditor(); initHaptics(); registerSW(); useAuthDiagnostic().onAuthStateChanged(()=>{});
+  logAuthEvent('App initialized — single pickup: '+PICKUP_ADDRESS);
+  logAuthEvent('Auth listener attached (useAuthDiagnostic hook)');
+
+  // Listeners
+  document.getElementById('theme-toggle').addEventListener('click',()=>{ currentTheme=currentTheme==='light'?'dark':'light'; applyTheme(); });
+  document.getElementById('lang-en').addEventListener('click',()=>{ currentLang='en'; applyLang(); });
+  document.getElementById('lang-th').addEventListener('click',()=>{ currentLang='th'; applyLang(); });
+  document.getElementById('lang-toggle-m').addEventListener('click',()=>{ currentLang=currentLang==='en'?'th':'en'; applyLang(); });
+  document.getElementById('mobile-menu').addEventListener('click',()=> document.getElementById('mobile-nav').classList.toggle('hidden'));
+  document.querySelectorAll('[data-view]').forEach(b=> b.addEventListener('click',()=> switchView(b.getAttribute('data-view'))));
+  document.querySelectorAll('.admin-tab').forEach(b=> b.addEventListener('click',()=> switchAdmin(b.getAttribute('data-admin'))));
+  document.getElementById('hc-toggle').addEventListener('change', e=>{ highContrast=e.target.checked; applyTheme(); showToast(highContrast?'High contrast ON':'High contrast OFF','info'); });
+
+  // Cart drawer
+  document.getElementById('cart-btn').addEventListener('click',()=> document.getElementById('cart-drawer').classList.remove('hidden'));
+  document.getElementById('cart-close').addEventListener('click',()=> document.getElementById('cart-drawer').classList.add('hidden'));
+  document.getElementById('cart-backdrop').addEventListener('click',()=> document.getElementById('cart-drawer').classList.add('hidden'));
+  document.getElementById('checkout-btn').addEventListener('click', openOrderSummary);
+  document.getElementById('pos-clear').addEventListener('click',()=>{ posDisplay='0'; posSelectedProduct=null; updatePOSDisplay(); });
+  document.getElementById('pos-checkout').addEventListener('click', openOrderSummary);
+
+  // Modals
+  document.getElementById('summary-close').addEventListener('click',()=> document.getElementById('order-summary-modal').classList.add('hidden'));
+  document.getElementById('summary-cancel').addEventListener('click',()=> document.getElementById('order-summary-modal').classList.add('hidden'));
+  document.getElementById('summary-backdrop').addEventListener('click',()=> document.getElementById('order-summary-modal').classList.add('hidden'));
+  document.getElementById('summary-confirm').addEventListener('click', placeOrder);
+
+  document.getElementById('session-close').addEventListener('click', hideSessionExpired);
+  document.getElementById('session-login').addEventListener('click',()=>{ setUser({uid:'user_'+Date.now(), email:'customer@wanchai.local'}); hideSessionExpired(); showToast('Logged in again','success'); });
+
+  // Admin quick actions
+  document.getElementById('simulate-ready').addEventListener('click',()=>{ if(activeOrder){ activeOrder.status='Ready'; playChime('ready'); showToast(t('ready_for_pickup'),'success'); renderOrderStatus(); triggerHaptic(); } else { playChime('ready'); showToast('Chime test: Ready for Pickup','success'); } });
+  document.getElementById('simulate-401').addEventListener('click', simulate401);
+  document.getElementById('run-a11y').addEventListener('click', runAccessibilityAudit);
+  document.getElementById('add-product-btn').addEventListener('click',()=>{ const id='prod_'+Date.now(); products.push({id, name_en:'New Soy Blend', name_th:'น้ำเต้าหู้ใหม่', price:50, stock:20, image:'https://images.unsplash.com/photo-1544787219-7f47cc556762?w=500', desc_en:'New recipe', desc_th:'สูตรใหม่'}); renderAll(); showToast('Product added','success'); });
+  document.getElementById('login-sim').addEventListener('click',()=> setUser({uid:'admin_'+Math.random().toString(36).slice(2,6), email:'admin@wanchai.local'}));
+  document.getElementById('logout-sim').addEventListener('click',()=> setUser(null));
+  document.getElementById('open-maps').addEventListener('click',()=> window.open(`https://maps.google.com/?q=${encodeURIComponent(PICKUP_ADDRESS)}`,'_blank'));
+
+  // Initial audit hint
+  setTimeout(()=>{ runAccessibilityAudit(); }, 800);
+});
+</script>
+</body>
+</html>
