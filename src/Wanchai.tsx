@@ -38,10 +38,23 @@ import {
   Accessibility,
   Keyboard,
   ScanEye,
+  CheckCircle2,
+  Receipt,
+  RotateCcw,
+  History,
+  ArrowUp,
+  ArrowDown,
+  Edit2,
+  PlusCircle,
+  Calculator,
+  Coins,
+  Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   useSaved,
   initialProducts,
+  initialOrders,
   defaultConfig,
   dates,
   windows,
@@ -52,9 +65,35 @@ import {
   type Subscription,
 } from "./lib/store";
 import Modal from "./components/Modal";
+import { RichTextEditor } from "./components/RichTextEditor";
 
-type View = "menu" | "orders" | "subscriptions" | "pos" | "kitchen" | "admin";
+type View =
+  | "menu"
+  | "orders"
+  | "history"
+  | "subscriptions"
+  | "pos"
+  | "kitchen"
+  | "admin";
 type AuditResult = { title: string; count: number; impact: string };
+export type ToastNotification = {
+  id: string;
+  type: "success" | "info" | "warning";
+  title?: string;
+  message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  duration?: number;
+};
+
+let toastCounter = 0;
+function getNextToastId(): string {
+  toastCounter = (toastCounter + 1) % 100000;
+  return `toast-${Date.now()}-${toastCounter}`;
+}
+
 export default function Wanchai() {
   const [lang, setLang] = useSaved<"en" | "th">("lang", "en");
   const tr = (en: string, th: string) => (lang === "en" ? en : th);
@@ -64,11 +103,11 @@ export default function Wanchai() {
   const [motion, setMotion] = useSaved("motion", false);
   const [config, setConfig] = useSaved("config", defaultConfig);
   const [products, setProducts] = useSaved<Product[]>(
-    "products",
+    "products-v3",
     initialProducts,
   );
   const [cart, setCart] = useSaved<CartItem[]>("cart", []);
-  const [orders, setOrders] = useSaved<Order[]>("orders", []);
+  const [orders, setOrders] = useSaved<Order[]>("orders", initialOrders);
   const [subscriptions, setSubscriptions] = useSaved<Subscription[]>(
     "subscriptions",
     [],
@@ -82,11 +121,16 @@ export default function Wanchai() {
   const [date, setDate] = useSaved("date", dates()[0]);
   const [slot, setSlot] = useSaved("slot", windows[1]);
   const [modal, setModal] = useState<
-    "checkout" | "plan" | "a11y" | "help" | "location" | null
+    "checkout" | "plan" | "a11y" | "help" | "location" | "receipt" | null
   >(null);
   const [detail, setDetail] = useState<Product | null>(null);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [customer, setCustomer] = useSaved("customer", { name: "", phone: "" });
-  const [toast, setToast] = useState("");
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "collected" | "active"
+  >("all");
+  const [historySearch, setHistorySearch] = useState("");
   const [error, setError] = useState("");
   const [plan, setPlan] = useState(false);
   const [planCount, setPlanCount] = useState(3);
@@ -96,10 +140,62 @@ export default function Wanchai() {
   const [dial, setDial] = useState("");
   const [selected, setSelected] = useState("original");
   const [adminTab, setAdminTab] = useState("settings");
+  const [adminCategory, setAdminCategory] = useState<
+    "all" | "milk" | "freshmilk" | "ginger" | "treat"
+  >("all");
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [newProduct, setNewProduct] = useState<Partial<Product>>({
+    category: "milk",
+    en: "",
+    th: "",
+    desc: "",
+    descTh: "",
+    price: 15,
+    stock: 50,
+    image: "/images/hot_soy_milk_bowl_1792747451795.jpg",
+  });
+  const [posCategory, setPosCategory] = useState<
+    "all" | "milk" | "freshmilk" | "ginger" | "treat"
+  >("all");
+  const [posMode, setPosMode] = useState<"dial" | "cash">("dial");
+  const [cashTendered, setCashTendered] = useState("");
   const [audit, setAudit] = useState<AuditResult[] | null>(null);
   const [auditing, setAuditing] = useState(false);
   const [outline, setOutline] = useState(false);
   const [orderFilter, setOrderFilter] = useState("all");
+
+  const moveProduct = (id: string, direction: "up" | "down") => {
+    setProducts((prev) => {
+      const idx = prev.findIndex((p) => p.id === id);
+      if (idx < 0) return prev;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(targetIdx, 0, item);
+      return copy;
+    });
+    notify(tr("Product order updated.", "ปรับลำดับสินค้าแล้ว"));
+  };
+
+  const renderRich = (content: string) => {
+    if (!content) return null;
+    if (/<[a-z][\s\S]*>/i.test(content)) {
+      return <span dangerouslySetInnerHTML={{ __html: content }} />;
+    }
+    return (
+      <span>
+        {content.split("\n").map((line, i) => (
+          <span key={i}>
+            {line}
+            {i < content.split("\n").length - 1 && <br />}
+          </span>
+        ))}
+      </span>
+    );
+  };
   const availableDates = dates();
   const pickupDate = availableDates.includes(date) ? date : availableDates[0];
   const money = (v: number) =>
@@ -130,12 +226,93 @@ export default function Wanchai() {
   const labels: Record<View, string> = {
     menu: tr("Our menu", "เมนูของเรา"),
     orders: tr("My orders", "ออเดอร์ของฉัน"),
+    history: tr("Previous orders", "ประวัติคำสั่งซื้อ"),
     subscriptions: tr("Subscriptions", "แพ็กเกจรายสัปดาห์"),
     pos: tr("Point of sale", "จุดขาย"),
     kitchen: tr("Kitchen orders", "ออเดอร์ในครัว"),
     admin: tr("Settings & admin", "ตั้งค่าและจัดการ"),
   };
-  const notify = (text: string) => setToast(text);
+
+  const addToast = (t: Omit<ToastNotification, "id">) => {
+    const id = getNextToastId();
+    const newToast: ToastNotification = { ...t, id };
+    setToasts((prev) => [...prev, newToast]);
+    const duration = t.duration || 4500;
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((item) => item.id !== id));
+    }, duration);
+    return id;
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const notify = (
+    text: string,
+    type: "success" | "info" | "warning" = "info",
+  ) => {
+    addToast({ type, message: text });
+  };
+
+  const notifySuccess = (
+    title: string,
+    message: string,
+    action?: { label: string; onClick: () => void },
+  ) => {
+    addToast({
+      type: "success",
+      title,
+      message,
+      action,
+      duration: 5000,
+    });
+  };
+
+  const reorder = (o: Order) => {
+    const newItems: CartItem[] = [];
+    o.items.forEach((item) => {
+      const prod = products.find(
+        (p) => p.en === item.name || p.th === item.nameTh,
+      );
+      if (prod && prod.stock > 0) {
+        newItems.push({ id: prod.id, qty: item.qty });
+      }
+    });
+    if (newItems.length === 0) {
+      addToast({
+        type: "warning",
+        title: tr("Items unavailable", "สินค้าไม่พร้อมจำหน่าย"),
+        message: tr(
+          "Items from this previous order are currently out of stock.",
+          "สินค้าจากออเดอร์ก่อนหน้านี้หมดชั่วคราว",
+        ),
+      });
+      return;
+    }
+    setPlan(o.plan);
+    setCart(newItems);
+    if (config.audio) chime(true);
+    notifySuccess(
+      tr("Added to your bag!", "เพิ่มลงในตะกร้าแล้ว!"),
+      tr(
+        `Loaded ${newItems.length} item(s) from order #${o.id}.`,
+        `เพิ่มสินค้า ${newItems.length} รายการจากออเดอร์ #${o.id} แล้ว`,
+      ),
+      {
+        label: tr("Review bag", "ตรวจสอบตะกร้า"),
+        onClick: () => {
+          const el = document.getElementById("your-bag");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth" });
+          } else {
+            openCheckout();
+          }
+        },
+      },
+    );
+  };
+
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dataset.theme = theme;
@@ -144,11 +321,7 @@ export default function Wanchai() {
     document.documentElement.dataset.motion = String(motion);
     document.documentElement.dataset.inspect = String(outline);
   }, [lang, theme, contrast, large, motion, outline]);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 4500);
-    return () => clearTimeout(timer);
-  }, [toast]);
+
   useEffect(() => {
     const on = () => setOnline(true);
     const off = () => setOnline(false);
@@ -165,23 +338,27 @@ export default function Wanchai() {
       window.removeEventListener("offline", off);
     };
   }, []);
+
   const go = (next: View) => {
     setView(next);
     setMobileNav(false);
     setError("");
     window.scrollTo({ top: 0, behavior: motion ? "instant" : "smooth" });
   };
+
   const add = (id: string, qty = 1) => {
     const p = products.find((p) => p.id === id);
     if (!p || qty < 1) return;
     const existing = cart.find((i) => i.id === id)?.qty || 0;
     if (existing + qty > p.stock) {
-      notify(
-        tr(
+      addToast({
+        type: "warning",
+        title: tr("Stock limit", "สินค้ามีไม่เพียงพอ"),
+        message: tr(
           "This batch has no more stock available.",
-          "สินค้ารอบนี้มีไม่เพียงพอ",
+          "สินค้ารอบนี้มีไม่เพียงพอสำหรับจำนวนที่เลือก",
         ),
-      );
+      });
       return;
     }
     setPlan(false);
@@ -189,7 +366,25 @@ export default function Wanchai() {
       ...old.filter((i) => i.id !== id),
       { id, qty: existing + qty },
     ]);
-    notify(tr(`${p.en} added to your bag`, `เพิ่ม${p.th}ในตะกร้าแล้ว`));
+    if (config.audio) chime(true);
+    notifySuccess(
+      tr("Added to bag!", "เพิ่มลงตะกร้าแล้ว!"),
+      tr(
+        `Added ${pname(p)} (${existing + qty} in bag)`,
+        `เพิ่ม ${pname(p)} (รวม ${existing + qty} ชิ้นในตะกร้า)`,
+      ),
+      {
+        label: tr("Review bag", "ตรวจสอบตะกร้า"),
+        onClick: () => {
+          const el = document.getElementById("your-bag");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth" });
+          } else {
+            openCheckout();
+          }
+        },
+      },
+    );
   };
   const changeQty = (id: string, delta: number) => {
     const item = cart.find((i) => i.id === id);
@@ -300,13 +495,18 @@ export default function Wanchai() {
     setCart([]);
     setPlan(false);
     setModal(null);
-    chime(config.audio);
-    go("orders");
-    notify(
+    chime(config.audio, true);
+    go("history");
+    notifySuccess(
+      tr("Order placed successfully!", "สั่งซื้อสำเร็จเรียบร้อยแล้ว!"),
       tr(
-        `Your order ${id} is saved. See you at the house!`,
-        `บันทึกออเดอร์ ${id} แล้ว พบกันที่บ้านนะคะ`,
+        `Order #${id} is confirmed. Total: ${money(total)} for ${formatDate(pickupDate)} (${slot}).`,
+        `บันทึกออเดอร์ #${id} เรียบร้อยแล้ว ยอดรวม ${money(total)} รับวันที่ ${formatDate(pickupDate)} (${slot})`,
       ),
+      {
+        label: tr("View order details", "ดูรายละเอียดออเดอร์"),
+        onClick: () => go("history"),
+      },
     );
   };
   const updateStatus = (id: string, status: Order["status"]) => {
@@ -579,6 +779,7 @@ export default function Wanchai() {
             [
               ["menu", LayoutGrid],
               ["orders", ShoppingBag],
+              ["history", Clock3],
               ["subscriptions", RefreshCw],
             ] as const
           ).map(([id, Icon]) => (
@@ -597,6 +798,11 @@ export default function Wanchai() {
                     {orders.filter((o) => o.status !== "collected").length}
                   </span>
                 )}
+              {id === "history" && orders.length > 0 && (
+                <span className="nav-count">
+                  {orders.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -733,20 +939,41 @@ export default function Wanchai() {
                       "สดใหม่จากครัวของเราในเชียงใหม่",
                     )}
                   </div>
+                  {Boolean(config.announcement) && (
+                    <div
+                      className="hero-announcement"
+                      style={{
+                        marginBottom: "12px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "var(--soft-green)",
+                        padding: "4px 12px",
+                        borderRadius: "20px",
+                        fontSize: "11px",
+                        color: "var(--green)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <Sparkles size={13} />
+                      {renderRich(
+                        tr(
+                          config.announcement,
+                          config.announcementTh || config.announcement,
+                        ),
+                      )}
+                    </div>
+                  )}
                   <h1>
-                    {tr(config.heading, config.headingTh)
-                      .split("\n")
-                      .map((line, i) => (
-                        <span key={i}>
-                          {line}
-                          {i === 0 && <br />}
-                        </span>
-                      ))}
+                    {renderRich(tr(config.heading, config.headingTh))}
                   </h1>
                   <p>
-                    {tr(
-                      config.note,
-                      "ทำสดใหม่ เรียบง่ายด้วยความใส่ใจ น้ำเต้าหู้ทีละน้อยจากครัวเชียงใหม่ เพื่อเติมความสุขเล็ก ๆ ให้ทุกวันของคุณ",
+                    {renderRich(
+                      tr(
+                        config.note,
+                        config.noteTh ||
+                          "ทำสดใหม่ เรียบง่ายด้วยความใส่ใจ น้ำเต้าหู้ทีละน้อยจากครัวเชียงใหม่ เพื่อเติมความสุขเล็ก ๆ ให้ทุกวันของคุณ",
+                      ),
                     )}
                   </p>
                   <button
@@ -899,9 +1126,11 @@ export default function Wanchai() {
                       aria-label={tr("Product categories", "หมวดสินค้า")}
                     >
                       {[
-                        ["all", tr("All goodness", "ทั้งหมด")],
+                        ["all", tr("All items", "ทั้งหมด")],
                         ["milk", tr("Soy milk", "น้ำเต้าหู้")],
-                        ["treat", tr("Little bites", "ของทานเล่น")],
+                        ["freshmilk", tr("Fresh milk", "นมสด")],
+                        ["ginger", tr("Ginger water", "น้ำขิง")],
+                        ["treat", tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง")],
                       ].map(([id, title]) => (
                         <button
                           key={id}
@@ -964,9 +1193,9 @@ export default function Wanchai() {
                             </span>
                           )}
                           <span className="product-volume">
-                            {p.category === "milk"
-                              ? "350 ml"
-                              : tr("Freshly made", "ทำสดใหม่")}
+                            {p.category === "treat"
+                              ? tr("Freshly made", "ทำสดใหม่")
+                              : tr("Fresh bowl", "ทำสดใหม่")}
                           </span>
                         </button>
                         <div className="product-info">
@@ -976,10 +1205,17 @@ export default function Wanchai() {
                           >
                             {pname(p)}
                           </button>
-                          <p>{tr(p.desc, p.descTh)}</p>
+                          <p>{renderRich(tr(p.desc, p.descTh))}</p>
                           <div className="product-meta">
                             <Leaf size={11} />
-                            {tr("Plant-based", "จากพืช")}
+                            {tr(
+                              p.category === "freshmilk"
+                                ? "Fresh milk"
+                                : "Plant-based",
+                              p.category === "freshmilk"
+                                ? "นมสดแท้"
+                                : "จากพืชธรรมชาติ",
+                            )}
                             <span>·</span>
                             {tr("Fresh daily", "ทำสดทุกวัน")}
                           </div>
@@ -988,10 +1224,10 @@ export default function Wanchai() {
                               <strong>{money(p.price)}</strong>
                               <small>
                                 {tr(
-                                  p.category === "milk"
-                                    ? "/ bottle"
-                                    : "/ serving",
-                                  p.category === "milk" ? "/ ขวด" : "/ ชุด",
+                                  p.category === "treat"
+                                    ? "/ serving"
+                                    : "/ bowl",
+                                  p.category === "treat" ? "/ ชิ้น/ชุด" : "/ ชาม",
                                 )}
                               </small>
                             </div>
@@ -1145,14 +1381,23 @@ export default function Wanchai() {
                     </button>
                   ))}
                 </div>
-                <button
-                  className="secondary"
-                  disabled={!orders.length}
-                  onClick={exportOrders}
-                >
-                  <Download size={15} />
-                  {tr("Export orders", "ส่งออกออเดอร์")}
-                </button>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <button
+                    className="secondary"
+                    onClick={() => go("history")}
+                  >
+                    <Clock3 size={15} />
+                    {tr("Full order history", "ดูประวัติคำสั่งซื้อ")}
+                  </button>
+                  <button
+                    className="secondary"
+                    disabled={!orders.length}
+                    onClick={exportOrders}
+                  >
+                    <Download size={15} />
+                    {tr("Export orders", "ส่งออกออเดอร์")}
+                  </button>
+                </div>
               </div>
               {orders
                 .filter(
@@ -1257,6 +1502,444 @@ export default function Wanchai() {
                   </p>
                   <button className="primary" onClick={() => go("menu")}>
                     {tr("Explore our menu", "ดูเมนูของเรา")}
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {view === "history" && (
+            <>
+              <PageHeading
+                kicker={tr("CUSTOMER DASHBOARD", "แดชบอร์ดลูกค้า")}
+                title={tr("Previous Orders & History", "ประวัติคำสั่งซื้อทั้งหมด")}
+                description={tr(
+                  "Review all your previous orders, current pickup statuses, itemized breakdowns, and total prices. Re-order your morning favorites in one tap.",
+                  "ดูประวัติคำสั่งซื้อทั้งหมดของคุณ ตรวจสอบสถานะ รายการสินค้า และราคารวม พร้อมสั่งซ้ำได้ในคลิกเดียว",
+                )}
+              />
+
+              {/* Customer Stats Cards */}
+              <div className="customer-stats-grid">
+                <div className="customer-stat-card">
+                  <span className="stat-label">
+                    <ShoppingBag size={14} />
+                    {tr("Total Orders", "จำนวนออเดอร์ทั้งหมด")}
+                  </span>
+                  <span className="stat-value">{orders.length}</span>
+                  <span className="stat-hint">
+                    {tr("Recorded on this device", "บันทึกบนอุปกรณ์นี้")}
+                  </span>
+                </div>
+                <div className="customer-stat-card">
+                  <span className="stat-label">
+                    <CreditCard size={14} />
+                    {tr("Total Spent", "ยอดสั่งซื้อสะสม")}
+                  </span>
+                  <span className="stat-value">
+                    {money(orders.reduce((sum, o) => sum + o.total, 0))}
+                  </span>
+                  <span className="stat-hint">
+                    {tr("All completed & pending", "รวมทุกรายการ")}
+                  </span>
+                </div>
+                <div className="customer-stat-card">
+                  <span className="stat-label">
+                    <CheckCircle2 size={14} />
+                    {tr("Completed Pickups", "รับสินค้าสำเร็จแล้ว")}
+                  </span>
+                  <span className="stat-value">
+                    {orders.filter((o) => o.status === "collected").length}
+                  </span>
+                  <span className="stat-hint">
+                    {tr("Picked up at Hai Ya", "รับสินค้าเรียบร้อย")}
+                  </span>
+                </div>
+                <div className="customer-stat-card">
+                  <span className="stat-label">
+                    <Clock3 size={14} />
+                    {tr("In Progress", "กำลังดำเนินการ")}
+                  </span>
+                  <span className="stat-value">
+                    {orders.filter((o) => o.status !== "collected").length}
+                  </span>
+                  <span className="stat-hint">
+                    {tr("Brewing or ready", "กำลังเตรียมหรือพร้อมรับ")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Toolbar with Search and Filters */}
+              <div className="page-toolbar">
+                <div className="category-tabs">
+                  {[
+                    {
+                      id: "all" as const,
+                      text: tr("All orders", "ทั้งหมด"),
+                      count: orders.length,
+                    },
+                    {
+                      id: "collected" as const,
+                      text: tr("Completed", "รับแล้ว"),
+                      count: orders.filter((o) => o.status === "collected")
+                        .length,
+                    },
+                    {
+                      id: "active" as const,
+                      text: tr("In progress", "กำลังดำเนินการ"),
+                      count: orders.filter((o) => o.status !== "collected")
+                        .length,
+                    },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setHistoryFilter(tab.id)}
+                      className={historyFilter === tab.id ? "active" : ""}
+                    >
+                      {tab.text} ({tab.count})
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    className="search-field"
+                    style={{ margin: 0, minWidth: "220px" }}
+                  >
+                    <Search size={15} />
+                    <input
+                      aria-label={tr("Search orders", "ค้นหาออเดอร์")}
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      placeholder={tr(
+                        "Search by ID, item, or name…",
+                        "ค้นหาตามรหัส, สินค้า, หรือชื่อ…",
+                      )}
+                    />
+                    {historySearch && (
+                      <button
+                        aria-label={tr("Clear search", "ล้างการค้นหา")}
+                        className="icon-button"
+                        onClick={() => setHistorySearch("")}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    className="secondary"
+                    disabled={!orders.length}
+                    onClick={exportOrders}
+                  >
+                    <Download size={14} />
+                    {tr("Export CSV", "ส่งออก")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Orders List */}
+              {orders
+                .filter((o) => {
+                  const matchesFilter =
+                    historyFilter === "all" ||
+                    (historyFilter === "collected"
+                      ? o.status === "collected"
+                      : o.status !== "collected");
+                  const q = historySearch.toLowerCase().trim();
+                  if (!q) return matchesFilter;
+                  const matchesSearch =
+                    o.id.toLowerCase().includes(q) ||
+                    o.name.toLowerCase().includes(q) ||
+                    o.phone.includes(q) ||
+                    o.items.some(
+                      (item) =>
+                        item.name.toLowerCase().includes(q) ||
+                        item.nameTh.toLowerCase().includes(q),
+                    );
+                  return matchesFilter && matchesSearch;
+                })
+                .map((o) => (
+                  <article
+                    className="order-card previous-order-card clickable-order-card"
+                    key={o.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={tr(`View itemized receipt for order ${o.id}`, `ดูใบเสร็จคำสั่งซื้อ ${o.id}`)}
+                    onClick={() => {
+                      setReceiptOrder(o);
+                      setModal("receipt");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setReceiptOrder(o);
+                        setModal("receipt");
+                      }
+                    }}
+                  >
+                    {/* Header */}
+                    <div className="previous-order-header">
+                      <div className="previous-order-meta">
+                        <div className="order-pill-row">
+                          <span className="order-id-code">{o.id}</span>
+                          <span>·</span>
+                          <span>{formatDate(o.date, true)}</span>
+                          <span>·</span>
+                          <span className="receipt-click-hint">
+                            <Receipt size={12} />
+                            {tr("Itemized receipt", "ใบเสร็จฉบับเต็ม")}
+                          </span>
+                        </div>
+                        <h3
+                          style={{
+                            fontFamily: "var(--serif)",
+                            fontSize: "19px",
+                            marginTop: "4px",
+                          }}
+                        >
+                          {o.name}
+                        </h3>
+                        <div className="order-pickup-time">
+                          <Clock3 size={13} />
+                          <span>{o.window}</span>
+                          <span>·</span>
+                          <MapPin size={13} />
+                          <span>{tr("Wanchai, Hai Ya", "วันชัย หายยา")}</span>
+                          <span>·</span>
+                          <span>{o.phone}</span>
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          textAlign: "right",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "flex-end",
+                          gap: "6px",
+                        }}
+                      >
+                        <span className={`status-badge ${o.status}`}>
+                          <span className="green-dot" />
+                          {statusLabel(o.status)}
+                        </span>
+                        <small
+                          style={{ fontSize: "10px", color: "var(--muted)" }}
+                        >
+                          {tr("Status:", "สถานะ:")}{" "}
+                          {o.status === "collected"
+                            ? tr("Completed", "สำเร็จ")
+                            : tr("Active", "รอรับ")}
+                        </small>
+                      </div>
+                    </div>
+
+                    {/* Progress indicator */}
+                    <div className="order-progress">
+                      {(
+                        ["received", "preparing", "ready", "collected"] as const
+                      ).map((s, i) => (
+                        <div
+                          key={s}
+                          className={
+                            [
+                              "received",
+                              "preparing",
+                              "ready",
+                              "collected",
+                            ].indexOf(o.status) >= i
+                              ? "complete"
+                              : ""
+                          }
+                        >
+                          <span>
+                            {[
+                              "received",
+                              "preparing",
+                              "ready",
+                              "collected",
+                            ].indexOf(o.status) >= i ? (
+                              <Check size={12} />
+                            ) : (
+                              i + 1
+                            )}
+                          </span>
+                          <small>{statusLabel(s)}</small>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Items List (Explicit requirement: "showing status, items, and total price") */}
+                    <div className="previous-order-items-wrapper">
+                      <div className="previous-order-items-title">
+                        {tr("Ordered Items & Quantity", "รายการสินค้าและจำนวน")}
+                      </div>
+                      {o.items.map((item, idx) => (
+                        <div className="previous-order-item-row" key={idx}>
+                          <div className="item-left-desc">
+                            <span className="item-qty-badge">{item.qty} ×</span>
+                            <strong>{tr(item.name, item.nameTh)}</strong>
+                            <span className="item-unit-price">
+                              (@ {money(item.price)}{" "}
+                              {tr("each", "/ ชิ้น")})
+                            </span>
+                          </div>
+                          <b>{money(item.qty * item.price)}</b>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pricing summary */}
+                    <div className="previous-order-pricing-summary">
+                      <div>
+                        {o.plan && (
+                          <div
+                            className="discount-line"
+                            style={{ margin: "0 0 4px 0" }}
+                          >
+                            <span>
+                              {tr(
+                                "Weekly plan savings (10% applied)",
+                                "รวมส่วนลดรายสัปดาห์ 10%",
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        <small
+                          style={{ fontSize: "11px", color: "var(--muted)" }}
+                        >
+                          <ShieldCheck
+                            size={12}
+                            style={{
+                              display: "inline",
+                              verticalAlign: "middle",
+                              marginRight: "4px",
+                            }}
+                          />
+                          {tr(
+                            "Pay at pickup · Cash or PromptPay QR",
+                            "ชำระเงินเมื่อรับสินค้า · เงินสดหรือพร้อมเพย์",
+                          )}
+                        </small>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--muted)",
+                            display: "block",
+                          }}
+                        >
+                          {tr("Total price", "ราคารวม")}
+                        </span>
+                        <span className="order-total-price-large">
+                          {money(o.total)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions row */}
+                    <div className="previous-order-actions-row">
+                      <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                        {tr("Order created:", "สั่งเมื่อ:")}{" "}
+                        {new Date(o.created).toLocaleDateString(
+                          lang === "en" ? "en-US" : "th-TH",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </div>
+                      <div className="previous-order-actions-buttons">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReceiptOrder(o);
+                            setModal("receipt");
+                          }}
+                        >
+                          <Receipt size={14} />
+                          {tr("View receipt", "ดูใบเสร็จ")}
+                        </button>
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reorder(o);
+                          }}
+                        >
+                          <RotateCcw size={14} />
+                          {tr("Order again", "สั่งซ้ำเมนูนี้")}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+              {/* Empty state when no orders match */}
+              {!orders.filter((o) => {
+                const matchesFilter =
+                  historyFilter === "all" ||
+                  (historyFilter === "collected"
+                    ? o.status === "collected"
+                    : o.status !== "collected");
+                const q = historySearch.toLowerCase().trim();
+                if (!q) return matchesFilter;
+                return (
+                  matchesFilter &&
+                  (o.id.toLowerCase().includes(q) ||
+                    o.name.toLowerCase().includes(q) ||
+                    o.items.some(
+                      (item) =>
+                        item.name.toLowerCase().includes(q) ||
+                        item.nameTh.toLowerCase().includes(q),
+                    ))
+                );
+              }).length && (
+                <div className="empty-state panel">
+                  <History size={40} strokeWidth={1.3} />
+                  <h2>
+                    {historySearch
+                      ? tr(
+                          "No orders match your search",
+                          "ไม่พบออเดอร์ที่ตรงกับคำค้นหา",
+                        )
+                      : tr(
+                          "No previous orders found",
+                          "ยังไม่มีประวัติคำสั่งซื้อ",
+                        )}
+                  </h2>
+                  <p>
+                    {historySearch
+                      ? tr(
+                          "Try clearing your search terms or filter tabs.",
+                          "ลองล้างคำค้นหาหรือเปลี่ยนแท็บตัวกรอง",
+                        )
+                      : tr(
+                          "When you pre-order fresh soy milk or treats from our kitchen, they will appear here with full status tracking, items breakdown, and total prices.",
+                          "เมื่อคุณสั่งซื้อน้ำเต้าหู้หรือของว่างสดใหม่ รายการจะแสดงที่นี่พร้อมการติดตามสถานะ รายการสินค้า และราคารวม",
+                        )}
+                  </p>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      if (historySearch) {
+                        setHistorySearch("");
+                        setHistoryFilter("all");
+                      } else {
+                        go("menu");
+                      }
+                    }}
+                  >
+                    {historySearch
+                      ? tr("Clear search", "ล้างการค้นหา")
+                      : tr("Explore today's menu", "ดูเมนูของวันนี้")}
                     <ArrowRight size={16} />
                   </button>
                 </div>
@@ -1455,94 +2138,265 @@ export default function Wanchai() {
               />
               <div className="pos-layout">
                 <section className="panel pos-panel">
-                  <h3>{tr("1. Choose a little goodness", "1. เลือกสินค้า")}</h3>
+                  {/* Category switcher for products in POS */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                    <h3 style={{ margin: 0 }}>{tr("1. Choose a little goodness", "1. เลือกสินค้า")}</h3>
+                    <div className="inventory-category-tabs" style={{ margin: 0 }}>
+                      {[
+                        { id: "all" as const, label: tr("All", "ทั้งหมด") },
+                        { id: "milk" as const, label: tr("Soy milk", "น้ำเต้าหู้") },
+                        { id: "freshmilk" as const, label: tr("Fresh milk", "นมสด") },
+                        { id: "ginger" as const, label: tr("Ginger", "น้ำขิง") },
+                        { id: "treat" as const, label: tr("Treats", "ของว่าง") },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={posCategory === t.id ? "active" : ""}
+                          onClick={() => setPosCategory(t.id)}
+                          style={{ padding: "4px 10px", fontSize: "11px" }}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="pos-products">
-                    {products.map((p) => (
-                      <button
-                        className={selected === p.id ? "selected" : ""}
-                        onClick={() => setSelected(p.id)}
-                        key={p.id}
-                      >
-                        <img src={p.image} alt="" />
-                        <strong>{pname(p)}</strong>
-                        <span>{money(p.price)}</span>
-                      </button>
-                    ))}
+                    {products
+                      .filter((p) => posCategory === "all" || p.category === posCategory)
+                      .map((p) => (
+                        <button
+                          className={selected === p.id ? "selected" : ""}
+                          onClick={() => setSelected(p.id)}
+                          key={p.id}
+                        >
+                          <img src={p.image} alt="" />
+                          <strong>{pname(p)}</strong>
+                          <span>{money(p.price)}</span>
+                        </button>
+                      ))}
                   </div>
-                  <div className="dial-header">
-                    <h3>{tr("2. How many?", "2. จำนวนเท่าไร?")}</h3>
-                    <span>
+
+                  {/* Mode switch: Quantity Dialpad VS Cash Calculator */}
+                  <div className="pos-mode-switch">
+                    <button
+                      type="button"
+                      className={`pos-mode-btn ${posMode === "dial" ? "active" : ""}`}
+                      onClick={() => setPosMode("dial")}
+                    >
                       <Keyboard size={15} />
-                      {tr("Large touch targets", "ปุ่มกดขนาดใหญ่")}
-                    </span>
+                      {tr("Big Quantity Dialpad", "แป้นกดจำนวนใหญ่")}
+                    </button>
+                    <button
+                      type="button"
+                      className={`pos-mode-btn ${posMode === "cash" ? "active" : ""}`}
+                      onClick={() => setPosMode("cash")}
+                    >
+                      <Coins size={15} />
+                      {tr("Cash & Change Calculator", "คำนวณเงินสดและเงินทอน")}
+                    </button>
                   </div>
-                  <output className="dial-display" aria-live="polite">
-                    <span>
-                      {pname(products.find((p) => p.id === selected)!)}
-                    </span>
-                    <b>{dial || "0"}</b>
-                  </output>
-                  <div className="dial-pad">
-                    {[
-                      "1",
-                      "2",
-                      "3",
-                      "4",
-                      "5",
-                      "6",
-                      "7",
-                      "8",
-                      "9",
-                      "C",
-                      "0",
-                      "⌫",
-                    ].map((key) => (
+
+                  {posMode === "dial" ? (
+                    <>
+                      <div className="dial-header">
+                        <h3>{tr("2. How many?", "2. จำนวนเท่าไร?")}</h3>
+                        <span style={{ fontSize: "11px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <Keyboard size={14} />
+                          {tr("Big touch targets", "ปุ่มกดขนาดใหญ่สัมผัสง่าย")}
+                        </span>
+                      </div>
+
+                      <output className="dial-display" aria-live="polite">
+                        <span>
+                          {pname(products.find((p) => p.id === selected) || products[0])}
+                        </span>
+                        <b>{dial || "0"}</b>
+                      </output>
+
+                      {/* Quick Presets */}
+                      <div className="pos-quick-presets">
+                        {[1, 2, 5, 10].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            className="pos-quick-btn"
+                            onClick={() => {
+                              chime(config.audio);
+                              setDial(String(num));
+                            }}
+                          >
+                            +{num}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Line subtotal preview */}
+                      <div className="pos-subtotal-badge">
+                        <span>{tr("Item subtotal:", "ยอดรวมสินค้านี้:")}</span>
+                        <strong>
+                          {money(
+                            (Number(dial) || 1) *
+                              (products.find((p) => p.id === selected)?.price || 0),
+                          )}
+                        </strong>
+                      </div>
+
+                      {/* Big Dialpad */}
+                      <div className="dial-pad big-dialpad">
+                        {[
+                          "1",
+                          "2",
+                          "3",
+                          "4",
+                          "5",
+                          "6",
+                          "7",
+                          "8",
+                          "9",
+                          "C",
+                          "0",
+                          "⌫",
+                        ].map((key) => (
+                          <button
+                            aria-label={
+                              key === "C"
+                                ? tr("Clear quantity", "ล้างจำนวน")
+                                : key === "⌫"
+                                  ? tr("Delete last digit", "ลบตัวเลขท้าย")
+                                  : key
+                            }
+                            key={key}
+                            className={
+                              key === "C"
+                                ? "action-clear"
+                                : key === "⌫"
+                                  ? "action-backspace"
+                                  : ""
+                            }
+                            onClick={() => {
+                              if (navigator.vibrate)
+                                navigator.vibrate(
+                                  config.haptic === "double"
+                                    ? [20, 30, 40]
+                                    : config.haptic === "strong"
+                                      ? 50
+                                      : 15,
+                                );
+                              setDial((d) =>
+                                key === "C"
+                                  ? ""
+                                  : key === "⌫"
+                                    ? d.slice(0, -1)
+                                    : d.length < 3
+                                      ? d === "0"
+                                        ? key
+                                        : d + key
+                                      : d,
+                              );
+                            }}
+                          >
+                            {key}
+                          </button>
+                        ))}
+                      </div>
+
                       <button
-                        aria-label={
-                          key === "C"
-                            ? tr("Clear quantity", "ล้างจำนวน")
-                            : key === "⌫"
-                              ? tr("Delete last digit", "ลบตัวเลขท้าย")
-                              : key
-                        }
-                        key={key}
+                        className="primary full pos-add"
+                        disabled={!Number(dial)}
                         onClick={() => {
-                          if (navigator.vibrate)
-                            navigator.vibrate(
-                              config.haptic === "double"
-                                ? [20, 30, 40]
-                                : config.haptic === "strong"
-                                  ? 50
-                                  : 15,
-                            );
-                          setDial((d) =>
-                            key === "C"
-                              ? ""
-                              : key === "⌫"
-                                ? d.slice(0, -1)
-                                : d.length < 3
-                                  ? d === "0"
-                                    ? key
-                                    : d + key
-                                  : d,
-                          );
+                          add(selected, Number(dial));
+                          setDial("");
                         }}
                       >
-                        {key}
+                        <Plus size={18} />
+                        {tr("Add quantity to bag", "เพิ่มจำนวนลงตะกร้า")}
                       </button>
-                    ))}
-                  </div>
-                  <button
-                    className="primary full pos-add"
-                    disabled={!Number(dial)}
-                    onClick={() => {
-                      add(selected, Number(dial));
-                      setDial("");
-                    }}
-                  >
-                    <Plus size={18} />
-                    {tr("Add quantity to bag", "เพิ่มจำนวนลงตะกร้า")}
-                  </button>
+                    </>
+                  ) : (
+                    /* Cash Tender & Change Calculator */
+                    <div className="cash-calculator-box">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <small style={{ color: "var(--muted)" }}>{tr("Current Bag Total", "ยอดรวมตะกร้าปัจจุบัน")}</small>
+                          <h2 style={{ fontSize: "28px", color: "var(--green)", margin: "4px 0" }}>{money(total)}</h2>
+                        </div>
+                        <span style={{ fontSize: "12px", background: "var(--surface-warm)", padding: "4px 10px", borderRadius: "12px" }}>
+                          {cart.reduce((s, i) => s + i.qty, 0)} {tr("items", "รายการ")}
+                        </span>
+                      </div>
+
+                      <div style={{ marginTop: "14px" }}>
+                        <small style={{ color: "var(--muted)" }}>{tr("Quick Cash Tendered", "จำนวนเงินสดที่ได้รับ")}</small>
+                        <div className="cash-quick-denominations">
+                          <button
+                            type="button"
+                            className="cash-bill-btn exact-btn"
+                            onClick={() => setCashTendered(String(total))}
+                          >
+                            {tr("Exact", "พอดี")} ({money(total)})
+                          </button>
+                          {[20, 50, 100, 500, 1000].map((bill) => (
+                            <button
+                              key={bill}
+                              type="button"
+                              className="cash-bill-btn"
+                              onClick={() => setCashTendered(String(bill))}
+                            >
+                              ฿{bill}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <label style={{ display: "block", marginTop: "12px" }}>
+                        <small style={{ color: "var(--muted)" }}>{tr("Cash received input (THB)", "ใส่จำนวนเงินสดที่ได้รับ")}</small>
+                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={cashTendered}
+                            onChange={(e) => setCashTendered(e.target.value)}
+                            style={{ fontSize: "18px", fontWeight: "600", padding: "8px 12px" }}
+                          />
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => setCashTendered("")}
+                          >
+                            {tr("Clear", "ล้าง")}
+                          </button>
+                        </div>
+                      </label>
+
+                      {/* Change Due calculation */}
+                      {Boolean(cashTendered && Number(cashTendered) > 0) && (
+                        <div
+                          className={`change-due-banner ${
+                            Number(cashTendered) >= total ? "positive" : "negative"
+                          }`}
+                        >
+                          <div>
+                            <strong>
+                              {Number(cashTendered) >= total
+                                ? tr("Change to return:", "เงินทอนลูกค้า:")
+                                : tr("Remaining to collect:", "ยังขาดอีก:")}
+                            </strong>
+                            <div style={{ fontSize: "11px", opacity: 0.85 }}>
+                              {tr("Cash:", "รับมา:")} {money(Number(cashTendered))} · {tr("Due:", "ยอด:")} {money(total)}
+                            </div>
+                          </div>
+                          <strong>
+                            {Number(cashTendered) >= total
+                              ? money(Number(cashTendered) - total)
+                              : money(total - Number(cashTendered))}
+                          </strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
                 {orderBox}
               </div>
@@ -1593,12 +2447,34 @@ export default function Wanchai() {
                 {orders
                   .filter((o) => o.status !== "collected")
                   .map((o) => (
-                    <div className="kitchen-card panel" key={o.id}>
+                    <div
+                      className="order-card kitchen-card panel clickable-order-card"
+                      key={o.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={tr(`View full receipt for order ${o.id}`, `ดูใบเสร็จคำสั่งซื้อ ${o.id}`)}
+                      onClick={() => {
+                        setReceiptOrder(o);
+                        setModal("receipt");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setReceiptOrder(o);
+                          setModal("receipt");
+                        }
+                      }}
+                    >
                       <div className="order-card-top">
                         <span className="eyebrow">{o.id}</span>
-                        <span className="status-badge">
-                          {statusLabel(o.status)}
-                        </span>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          <span className="receipt-click-hint">
+                            <Receipt size={11} /> {tr("Receipt", "ใบเสร็จ")}
+                          </span>
+                          <span className="status-badge">
+                            {statusLabel(o.status)}
+                          </span>
+                        </div>
                       </div>
                       <h3>{o.name}</h3>
                       <p>
@@ -1622,7 +2498,8 @@ export default function Wanchai() {
                       </p>
                       <button
                         className="primary full"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation();
                           updateStatus(
                             o.id,
                             o.status === "received"
@@ -1630,8 +2507,8 @@ export default function Wanchai() {
                               : o.status === "preparing"
                                 ? "ready"
                                 : "collected",
-                          )
-                        }
+                          );
+                        }}
                       >
                         {o.status === "received"
                           ? tr("Start preparing", "เริ่มเตรียม")
@@ -1686,9 +2563,8 @@ export default function Wanchai() {
                 {[
                   ["settings", tr("House settings", "ตั้งค่าร้าน")],
                   ["inventory", tr("Products & stock", "สินค้าและสต็อก")],
-                  ["content", tr("Content studio", "จัดการเนื้อหา")],
+                  ["content", tr("Hero wall & story", "ผนังฮีโร่และเรื่องราว")],
                   ["accessibility", tr("Accessibility", "การเข้าถึง")],
-                  ["diagnostics", tr("Diagnostics", "ตรวจสอบระบบ")],
                 ].map(([id, text]) => (
                   <button
                     key={id}
@@ -1842,135 +2718,217 @@ export default function Wanchai() {
               )}
               {adminTab === "inventory" && (
                 <section className="panel inventory-panel">
-                  <h3>{tr("The day’s batch", "สินค้าของวันนี้")}</h3>
-                  <p>
-                    {tr(
-                      "Update remaining stock and prices. Completed local orders reduce stock automatically.",
-                      "ปรับสต็อกและราคา ออเดอร์ที่ยืนยันบนอุปกรณ์นี้จะหักสต็อกอัตโนมัติ",
-                    )}
-                  </p>
+                  <div className="inventory-header-bar">
+                    <div>
+                      <h3 style={{ margin: "0 0 4px" }}>
+                        {tr("Products & Menu Management", "จัดการสินค้าและเมนู")}
+                      </h3>
+                      <p style={{ margin: 0 }}>
+                        {tr(
+                          "Organize products per category, edit with rich text, arrange display order, add new items, or adjust stock.",
+                          "จัดการสินค้าตามหมวดหมู่ แก้ไขข้อความด้วยโปรแกรมจัดรูปแบบ ปรับลำดับ เพิ่มเมนูใหม่ หรือปรับสต็อก",
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      className="primary"
+                      type="button"
+                      onClick={() => {
+                        setNewProduct({
+                          category: "milk",
+                          en: "",
+                          th: "",
+                          desc: "",
+                          descTh: "",
+                          price: 15,
+                          stock: 50,
+                          image: "/images/hot_soy_milk_bowl_1792747451795.jpg",
+                        });
+                        setIsAddingProduct(true);
+                      }}
+                    >
+                      <PlusCircle size={16} />
+                      {tr("Add new product", "เพิ่มสินค้าใหม่")}
+                    </button>
+                  </div>
+
+                  {/* Category Filter Tabs */}
+                  <div className="inventory-category-tabs" style={{ margin: "14px 0" }}>
+                    {[
+                      { id: "all" as const, label: tr("All items", "ทั้งหมด"), count: products.length },
+                      { id: "milk" as const, label: tr("Soy milk", "น้ำเต้าหู้"), count: products.filter(p => p.category === "milk").length },
+                      { id: "freshmilk" as const, label: tr("Fresh milk", "นมสด"), count: products.filter(p => p.category === "freshmilk").length },
+                      { id: "ginger" as const, label: tr("Ginger water", "น้ำขิง"), count: products.filter(p => p.category === "ginger").length },
+                      { id: "treat" as const, label: tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง"), count: products.filter(p => p.category === "treat").length },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={adminCategory === tab.id ? "active" : ""}
+                        onClick={() => setAdminCategory(tab.id)}
+                      >
+                        {tab.label} ({tab.count})
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="table-scroll">
                     <table>
                       <thead>
                         <tr>
+                          <th style={{ width: "70px" }}>{tr("Arrange", "ลำดับ")}</th>
                           <th>{tr("Product", "สินค้า")}</th>
+                          <th>{tr("Category", "หมวดหมู่")}</th>
                           <th>{tr("Price · THB", "ราคา · บาท")}</th>
                           <th>{tr("Available", "คงเหลือ")}</th>
-                          <th>{tr("Photo", "รูปภาพ")}</th>
+                          <th style={{ textAlign: "right" }}>{tr("Actions", "การจัดการ")}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {products.map((p) => (
-                          <tr key={p.id}>
-                            <td>
-                              <div className="table-product">
-                                <img src={p.image} alt="" />
-                                <strong>{pname(p)}</strong>
-                              </div>
-                            </td>
-                            <td>
-                              <input
-                                aria-label={tr(`${p.en} price`, `ราคา${p.th}`)}
-                                type="number"
-                                min="1"
-                                max="9999"
-                                value={p.price}
-                                onChange={(e) =>
-                                  setProducts((old) =>
-                                    old.map((i) =>
-                                      i.id === p.id
-                                        ? {
-                                            ...i,
-                                            price: Math.max(
-                                              1,
-                                              Math.min(
-                                                9999,
-                                                Number(e.target.value),
-                                              ),
-                                            ),
-                                          }
-                                        : i,
-                                    ),
-                                  )
-                                }
-                              />
-                            </td>
-                            <td>
-                              <input
-                                aria-label={tr(`${p.en} stock`, `สต็อก${p.th}`)}
-                                type="number"
-                                min="0"
-                                max="999"
-                                value={p.stock}
-                                onChange={(e) =>
-                                  setProducts((old) =>
-                                    old.map((i) =>
-                                      i.id === p.id
-                                        ? {
-                                            ...i,
-                                            stock: Math.max(
-                                              0,
-                                              Math.min(
-                                                999,
-                                                Number(e.target.value),
-                                              ),
-                                            ),
-                                          }
-                                        : i,
-                                    ),
-                                  )
-                                }
-                              />
-                            </td>
-                            <td>
-                              <label className="upload-button">
-                                {tr("Upload", "อัปโหลด")}
+                        {products
+                          .filter((p) => adminCategory === "all" || p.category === adminCategory)
+                          .map((p, filteredIdx, currentList) => (
+                            <tr key={p.id}>
+                              <td>
+                                <div className="reorder-controls">
+                                  <button
+                                    type="button"
+                                    className="reorder-btn"
+                                    title={tr("Move up", "เลื่อนขึ้น")}
+                                    aria-label={tr(`Move ${p.en} up`, `เลื่อน${p.th}ขึ้น`)}
+                                    disabled={filteredIdx === 0}
+                                    onClick={() => moveProduct(p.id, "up")}
+                                  >
+                                    <ArrowUp size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="reorder-btn"
+                                    title={tr("Move down", "เลื่อนลง")}
+                                    aria-label={tr(`Move ${p.en} down`, `เลื่อน${p.th}ลง`)}
+                                    disabled={filteredIdx === currentList.length - 1}
+                                    onClick={() => moveProduct(p.id, "down")}
+                                  >
+                                    <ArrowDown size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="table-product">
+                                  <img src={p.image} alt="" />
+                                  <div>
+                                    <strong>{pname(p)}</strong>
+                                    <small style={{ display: "block", color: "var(--muted)", fontSize: "11px" }}>
+                                      {lang === "en" ? p.th : p.en}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{
+                                  fontSize: "11px",
+                                  padding: "3px 8px",
+                                  borderRadius: "12px",
+                                  background: "var(--surface-warm, #f3f5ee)",
+                                  border: "1px solid var(--border)",
+                                }}>
+                                  {p.category === "milk"
+                                    ? tr("Soy milk", "น้ำเต้าหู้")
+                                    : p.category === "freshmilk"
+                                      ? tr("Fresh milk", "นมสด")
+                                      : p.category === "ginger"
+                                        ? tr("Ginger water", "น้ำขิง")
+                                        : tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง")}
+                                </span>
+                              </td>
+                              <td>
                                 <input
-                                  type="file"
-                                  accept="image/*"
-                                  aria-label={tr(
-                                    `Upload photo for ${p.en}`,
-                                    `อัปโหลดรูป${p.th}`,
-                                  )}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    if (file.size > 600000) {
-                                      notify(
-                                        tr(
-                                          "Please choose an image under 600 KB for device storage.",
-                                          "โปรดเลือกภาพขนาดต่ำกว่า 600 KB",
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    const reader = new FileReader();
-                                    reader.onload = () =>
-                                      setProducts((old) =>
-                                        old.map((i) =>
-                                          i.id === p.id
-                                            ? {
-                                                ...i,
-                                                image: String(reader.result),
-                                              }
-                                            : i,
-                                        ),
-                                      );
-                                    reader.readAsDataURL(file);
-                                  }}
+                                  aria-label={tr(`${p.en} price`, `ราคา${p.th}`)}
+                                  type="number"
+                                  min="1"
+                                  max="9999"
+                                  value={p.price}
+                                  onChange={(e) =>
+                                    setProducts((old) =>
+                                      old.map((i) =>
+                                        i.id === p.id
+                                          ? {
+                                              ...i,
+                                              price: Math.max(
+                                                1,
+                                                Math.min(
+                                                  9999,
+                                                  Number(e.target.value),
+                                                ),
+                                              ),
+                                            }
+                                          : i,
+                                      ),
+                                    )
+                                  }
                                 />
-                              </label>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={tr(`${p.en} stock`, `สต็อก${p.th}`)}
+                                  type="number"
+                                  min="0"
+                                  max="999"
+                                  value={p.stock}
+                                  onChange={(e) =>
+                                    setProducts((old) =>
+                                      old.map((i) =>
+                                        i.id === p.id
+                                          ? {
+                                              ...i,
+                                              stock: Math.max(
+                                                0,
+                                                Math.min(
+                                                  999,
+                                                  Number(e.target.value),
+                                                ),
+                                              ),
+                                            }
+                                          : i,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    style={{ padding: "5px 10px", fontSize: "11px" }}
+                                    title={tr("Edit product with rich text", "แก้ไขด้วยโปรแกรมแก้ไขข้อความ")}
+                                    onClick={() => setEditingProduct(p)}
+                                  >
+                                    <Edit2 size={13} />
+                                    {tr("Edit", "แก้ไข")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="icon-button"
+                                    style={{ color: "#dc2626" }}
+                                    title={tr("Delete product", "ลบสินค้า")}
+                                    aria-label={tr(`Delete ${p.en}`, `ลบ${p.th}`)}
+                                    onClick={() => setDeletingProduct(p)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
                   <p className="save-note">
                     <CheckCheck size={15} />
                     {tr(
-                      "Changes are saved automatically on this device.",
-                      "บันทึกการเปลี่ยนแปลงบนอุปกรณ์นี้อัตโนมัติ",
+                      "Changes and category display arrangements are saved on this device.",
+                      "บันทึกการเปลี่ยนแปลงและลำดับสินค้าบนอุปกรณ์นี้อัตโนมัติ",
                     )}
                   </p>
                 </section>
@@ -1982,54 +2940,155 @@ export default function Wanchai() {
                     e.preventDefault();
                     notify(
                       tr(
-                        "Your story has been saved.",
-                        "บันทึกเรื่องราวของคุณแล้ว",
+                        "Hero wall & story have been saved.",
+                        "บันทึกผนังฮีโร่และเรื่องราวแล้ว",
                       ),
                     );
                   }}
                 >
-                  <h3>
-                    <Leaf size={19} />
-                    {tr("Tell the house story", "เล่าเรื่องราวของบ้านเรา")}
-                  </h3>
-                  <div className="form-grid">
-                    <label>
-                      {tr("Hero heading · English", "หัวเรื่อง · อังกฤษ")}
-                      <textarea
-                        rows={3}
-                        required
-                        value={config.heading}
-                        onChange={(e) =>
-                          setConfig({ ...config, heading: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {tr("Hero heading · Thai", "หัวเรื่อง · ไทย")}
-                      <textarea
-                        rows={3}
-                        required
-                        value={config.headingTh}
-                        onChange={(e) =>
-                          setConfig({ ...config, headingTh: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="span-two">
-                      {tr("Our story · English", "เรื่องราวของเรา · อังกฤษ")}
-                      <textarea
-                        rows={4}
-                        required
-                        value={config.note}
-                        onChange={(e) =>
-                          setConfig({ ...config, note: e.target.value })
-                        }
-                      />
-                    </label>
+                  <div className="section-heading" style={{ marginBottom: "16px" }}>
+                    <div>
+                      <h3 style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Sparkles size={19} />
+                        {tr("Hero Wall & Story Studio", "สตูดิโอผนังฮีโร่และเรื่องราว")}
+                      </h3>
+                      <p>
+                        {tr(
+                          "Design your storefront hero wall, announcement ticker, and brand story with the rich text editor.",
+                          "ปรับแต่งผนังฮีโร่หน้าร้าน แถบประกาศ และเรื่องราวแบรนด์ด้วยโปรแกรมแก้ไขข้อความ",
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="form-footer">
+
+                  {/* Live Hero Wall Preview */}
+                  <div className="hero-wall-preview">
+                    <div className="hero-wall-preview-header">
+                      <Sparkles size={14} />
+                      {tr("Live Storefront Hero Wall Preview", "ตัวอย่างผนังฮีโร่หน้าร้านจริง")}
+                    </div>
+                    <div className="hero-wall-preview-body" style={{ background: "var(--surface)" }}>
+                      {Boolean(config.announcement) && (
+                        <div style={{ marginBottom: "12px", display: "inline-flex", alignItems: "center", gap: "6px", background: "var(--soft-green)", padding: "3px 12px", borderRadius: "16px", fontSize: "11px", color: "var(--green)", fontWeight: 500 }}>
+                          <Sparkles size={12} />
+                          {renderRich(tr(config.announcement, config.announcementTh || config.announcement))}
+                        </div>
+                      )}
+                      <h2 style={{ fontFamily: "var(--serif)", fontSize: "24px", margin: "6px 0 10px", color: "var(--text)" }}>
+                        {renderRich(tr(config.heading, config.headingTh))}
+                      </h2>
+                      <p style={{ fontSize: "13px", color: "var(--muted)", lineHeight: 1.6, maxWidth: "650px" }}>
+                        {renderRich(tr(config.note, config.noteTh || config.note))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="form-grid">
+                    <div className="span-two">
+                      <label>
+                        {tr("Hero Wall Heading · English (Rich Text)", "หัวเรื่องผนังฮีโร่ · อังกฤษ (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.heading}
+                          onChange={(val) => setConfig({ ...config, heading: val })}
+                          placeholder="e.g. A little goodness, every morning."
+                          minHeight="90px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Hero Wall Heading · Thai (Rich Text)", "หัวเรื่องผนังฮีโร่ · ไทย (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.headingTh}
+                          onChange={(val) => setConfig({ ...config, headingTh: val })}
+                          placeholder="เช่น ความอร่อยเล็ก ๆ ในทุกเช้าของคุณ"
+                          minHeight="90px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Announcement / Special Ticker · English (Rich Text)", "แถบประกาศพิเศษ · อังกฤษ (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.announcement || ""}
+                          onChange={(val) => setConfig({ ...config, announcement: val })}
+                          placeholder="e.g. Fresh daily batch · Pickups 06:30 – 15:00"
+                          minHeight="70px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Announcement / Special Ticker · Thai (Rich Text)", "แถบประกาศพิเศษ · ไทย (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.announcementTh || ""}
+                          onChange={(val) => setConfig({ ...config, announcementTh: val })}
+                          placeholder="เช่น ต้มสดใหม่ทุกวัน · รับสินค้า 06:30 – 15:00"
+                          minHeight="70px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Our Story & Philosophy · English (Rich Text)", "เรื่องราวและปรัชญาของเรา · อังกฤษ (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.note}
+                          onChange={(val) => setConfig({ ...config, note: val })}
+                          placeholder="Tell customers about your kitchen and craft..."
+                          minHeight="110px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Our Story & Philosophy · Thai (Rich Text)", "เรื่องราวและปรัชญาของเรา · ไทย (จัดรูปแบบได้)")}
+                        <RichTextEditor
+                          value={config.noteTh || ""}
+                          onChange={(val) => setConfig({ ...config, noteTh: val })}
+                          placeholder="เล่าเรื่องราวความใส่ใจและวัตถุดิบของร้าน..."
+                          minHeight="110px"
+                        />
+                      </label>
+                    </div>
+                    <div className="span-two">
+                      <label>
+                        {tr("Hero Wall Image", "รูปภาพผนังฮีโร่")}
+                        <div style={{ display: "flex", gap: "12px", alignItems: "center", marginTop: "6px" }}>
+                          <img
+                            src={config.heroImage || "/images/hero.webp"}
+                            alt=""
+                            style={{ width: "64px", height: "64px", borderRadius: "8px", objectFit: "cover", border: "1px solid var(--border)" }}
+                          />
+                          <input
+                            type="text"
+                            value={config.heroImage || "/images/hero.webp"}
+                            onChange={(e) => setConfig({ ...config, heroImage: e.target.value })}
+                            placeholder="/images/hero.webp"
+                            style={{ flex: 1 }}
+                          />
+                          <label className="upload-button" style={{ margin: 0 }}>
+                            {tr("Upload", "อัปโหลด")}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setConfig({ ...config, heroImage: String(reader.result) });
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="form-footer" style={{ marginTop: "20px" }}>
                     <button className="primary" type="submit">
-                      {tr("Save story", "บันทึกเรื่องราว")}
+                      {tr("Save Hero Wall & Story", "บันทึกผนังฮีโร่และเรื่องราว")}
                       <Check size={15} />
                     </button>
                   </div>
@@ -2122,67 +3181,7 @@ export default function Wanchai() {
                   </button>
                 </section>
               )}
-              {adminTab === "diagnostics" && (
-                <section className="panel settings-panel">
-                  <h3>
-                    <ShieldCheck size={21} />
-                    {tr("An honest little status check", "ตรวจสอบสถานะระบบ")}
-                  </h3>
-                  <div className="diagnostic-list">
-                    {[
-                      [
-                        tr("Network", "เครือข่าย"),
-                        online
-                          ? tr("Online", "ออนไลน์")
-                          : tr("Offline", "ออฟไลน์"),
-                      ],
-                      [
-                        tr("Service worker", "เซอร์วิสเวิร์กเกอร์"),
-                        cacheReady
-                          ? tr(
-                              "Registered · same-origin cache",
-                              "ลงทะเบียนแล้ว · แคชภายในเว็บไซต์",
-                            )
-                          : tr("Not active", "ยังไม่ทำงาน"),
-                      ],
-                      [
-                        tr("Local orders", "ออเดอร์ในอุปกรณ์"),
-                        String(orders.length),
-                      ],
-                      [
-                        tr("Storage", "ที่เก็บข้อมูล"),
-                        tr(
-                          "Browser localStorage · this device only",
-                          "localStorage · เฉพาะอุปกรณ์นี้",
-                        ),
-                      ],
-                      [
-                        tr("Payment processing", "ระบบชำระเงิน"),
-                        tr(
-                          "Not connected · pay at pickup",
-                          "ยังไม่เชื่อมต่อ · จ่ายเมื่อรับสินค้า",
-                        ),
-                      ],
-                      [
-                        tr(
-                          "Authentication & backend",
-                          "การเข้าสู่ระบบและเซิร์ฟเวอร์",
-                        ),
-                        tr("Not connected", "ยังไม่เชื่อมต่อ"),
-                      ],
-                    ].map(([text, value]) => (
-                      <div key={text}>
-                        <span>{text}</span>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="secondary" onClick={exportOrders}>
-                    <Download size={16} />
-                    {tr("Back up orders as CSV", "สำรองออเดอร์เป็น CSV")}
-                  </button>
-                </section>
-              )}
+
             </>
           )}
           <footer className="main-footer">
@@ -2224,19 +3223,55 @@ export default function Wanchai() {
           </b>
         </button>
       )}
-      {toast && (
-        <div className="toast" role="status">
-          <span>
-            <Check size={16} />
-          </span>
-          {toast}
-          <button
-            aria-label={tr("Dismiss notification", "ปิดการแจ้งเตือน")}
-            onClick={() => setToast("")}
-          >
-            <X size={15} />
-          </button>
-        </div>
+      {toasts.length > 0 && (
+        <aside
+          className="toast-container"
+          aria-label={tr("Notifications", "การแจ้งเตือน")}
+          aria-live="polite"
+        >
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`toast-card toast-${t.type}`}
+              role="status"
+            >
+              <span className="toast-icon">
+                {t.type === "success" ? (
+                  <CheckCircle2 size={18} strokeWidth={2.2} />
+                ) : t.type === "warning" ? (
+                  <HelpCircle size={18} />
+                ) : (
+                  <Check size={18} />
+                )}
+              </span>
+              <div className="toast-body">
+                {t.title && <strong className="toast-title">{t.title}</strong>}
+                <p className="toast-message">{t.message}</p>
+                {t.action && (
+                  <button
+                    type="button"
+                    className="toast-action"
+                    onClick={() => {
+                      t.action?.onClick();
+                      removeToast(t.id);
+                    }}
+                  >
+                    {t.action.label}
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="toast-close"
+                aria-label={tr("Dismiss notification", "ปิดการแจ้งเตือน")}
+                onClick={() => removeToast(t.id)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+        </aside>
       )}
       {detail && (
         <Modal
@@ -2250,16 +3285,18 @@ export default function Wanchai() {
             alt={pname(detail)}
           />
           <div className="modal-body">
-            <p>{tr(detail.desc, detail.descTh)}</p>
+            <p>{renderRich(tr(detail.desc, detail.descTh))}</p>
             <div className="detail-pills">
               <span>
                 <Leaf size={14} />
-                {tr("Plant-based", "จากพืช")}
+                {detail.category === "freshmilk"
+                  ? tr("Fresh Dairy", "นมสดแท้")
+                  : tr("Plant-based", "จากพืช")}
               </span>
               <span>
-                {detail.category === "milk"
-                  ? "350 ml"
-                  : tr("Made fresh", "ทำสดใหม่")}
+                {detail.category === "treat"
+                  ? tr("Made fresh", "ทำสดใหม่")
+                  : tr("House-brewed", "ต้มสดใหม่")}
               </span>
               <span>
                 {detail.stock} {tr("available", "คงเหลือ")}
@@ -2430,7 +3467,7 @@ export default function Wanchai() {
                 onChange={(e) => setPlanProduct(e.target.value)}
               >
                 {products
-                  .filter((p) => p.category === "milk")
+                  .filter((p) => p.category === "milk" || p.category === "freshmilk" || p.category === "ginger")
                   .map((p) => (
                     <option key={p.id} value={p.id}>
                       {pname(p)} · {money(p.price)}
@@ -2648,6 +3685,107 @@ export default function Wanchai() {
                 <p>{a}</p>
               </details>
             ))}
+          </div>
+        </Modal>
+      )}
+      {modal === "receipt" && receiptOrder && (
+        <Modal
+          title={tr("Order Receipt", "ใบเสร็จคำสั่งซื้อ")}
+          close={() => {
+            setModal(null);
+            setReceiptOrder(null);
+          }}
+          closeLabel={tr("Close receipt", "ปิดใบเสร็จ")}
+        >
+          <div className="receipt-paper">
+            <div className="receipt-header">
+              <Sprout size={28} style={{ color: "var(--green)", margin: "0 auto 6px" }} />
+              <h3>WANCHAI SOY MILK HOUSE</h3>
+              <p>16 Hai Ya Road, Hai Ya, Chiang Mai 50100</p>
+              <p>{tr("Fresh small-batch soy milk & treats", "น้ำเต้าหู้และของว่างสดใหม่ทีละน้อย")}</p>
+            </div>
+            <div className="receipt-meta">
+              <div>
+                <strong>{tr("Order No:", "เลขที่:")}</strong> {receiptOrder.id}
+              </div>
+              <div>
+                <strong>{tr("Date:", "วันที่:")}</strong> {formatDate(receiptOrder.date)}
+              </div>
+            </div>
+            <div className="receipt-meta">
+              <div>
+                <strong>{tr("Customer:", "ลูกค้า:")}</strong> {receiptOrder.name}
+              </div>
+              <div>
+                <strong>{tr("Window:", "ช่วงเวลา:")}</strong> {receiptOrder.window}
+              </div>
+            </div>
+            <div className="receipt-meta">
+              <div>
+                <strong>{tr("Status:", "สถานะ:")}</strong> {statusLabel(receiptOrder.status)}
+              </div>
+              <div>
+                <strong>{tr("Phone:", "โทร:")}</strong> {receiptOrder.phone}
+              </div>
+            </div>
+            <table className="receipt-items-table">
+              <thead>
+                <tr>
+                  <th>{tr("Item", "รายการ")}</th>
+                  <th style={{ textAlign: "center" }}>{tr("Qty", "จำนวน")}</th>
+                  <th style={{ textAlign: "right" }}>{tr("Price", "ราคา")}</th>
+                  <th style={{ textAlign: "right" }}>{tr("Total", "รวม")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receiptOrder.items.map((item, idx) => (
+                  <tr key={idx}>
+                    <td>{tr(item.name, item.nameTh)}</td>
+                    <td style={{ textAlign: "center" }}>{item.qty}</td>
+                    <td style={{ textAlign: "right" }}>{money(item.price)}</td>
+                    <td style={{ textAlign: "right" }}>{money(item.qty * item.price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {receiptOrder.plan && (
+              <div className="discount-line" style={{ margin: "6px 0" }}>
+                <span>{tr("Weekly plan savings (10%)", "ส่วนลดแพ็กเกจรายสัปดาห์ (10%)")}</span>
+                <b>-{money(Math.round((receiptOrder.total / 0.9) * 0.1))}</b>
+              </div>
+            )}
+            <div className="receipt-total-row">
+              <span>{tr("Grand Total", "ยอดสุทธิ")}</span>
+              <span className="order-total-price-large">{money(receiptOrder.total)}</span>
+            </div>
+            <div className="receipt-footer-note">
+              <p>{tr("Payment due at pickup (Cash / PromptPay QR)", "ชำระเงินเมื่อรับสินค้า (เงินสด / สแกนคิวอาร์โค้ด)")}</p>
+              <p>{tr("Thank you for choosing Wanchai!", "ขอบพระคุณที่อุดหนุนบ้านวันชัยค่ะ")}</p>
+            </div>
+            <div style={{ marginTop: "16px", display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary full"
+                onClick={() => {
+                  window.print();
+                }}
+              >
+                <Download size={14} />
+                {tr("Print slip", "พิมพ์ใบเสร็จ")}
+              </button>
+              <button
+                type="button"
+                className="primary full"
+                onClick={() => {
+                  reorder(receiptOrder);
+                  setModal(null);
+                  setReceiptOrder(null);
+                }}
+              >
+                <RotateCcw size={14} />
+                {tr("Re-order items", "สั่งซ้ำเมนูนี้")}
+              </button>
+            </div>
           </div>
         </Modal>
       )}

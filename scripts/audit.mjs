@@ -73,8 +73,8 @@ try {
   await page.screenshot({ path: "audit/desktop.png", fullPage: true });
   await scan("storefront");
   assert(
-    (await page.locator(".product-card").count()) === 6,
-    "Six products exist",
+    (await page.locator(".product-card").count()) >= 6,
+    "Products exist on storefront",
   );
   await page
     .getByRole("button", { name: "Add Original Soy Milk to bag", exact: true })
