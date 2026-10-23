@@ -1,0 +1,6 @@
+{
+  "name": "Wanchai — Soy Milk House",
+  "description": "Fresh, small-batch soy milk in Hai Ya, Chiang Mai. Pre-order your morning brew, choose a pickup window, or start a weekly pickup plan.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
