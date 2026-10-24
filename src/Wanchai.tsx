@@ -46,10 +46,8 @@ import {
   ArrowDown,
   Edit2,
   PlusCircle,
-  Calculator,
   Coins,
   Sparkles,
-  Image as ImageIcon,
 } from "lucide-react";
 import {
   useSaved,
@@ -3784,6 +3782,451 @@ export default function Wanchai() {
               >
                 <RotateCcw size={14} />
                 {tr("Re-order items", "สั่งซ้ำเมนูนี้")}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* Add New Product Modal */}
+      {isAddingProduct && (
+        <Modal
+          title={tr("Add New Product", "เพิ่มสินค้าใหม่")}
+          close={() => setIsAddingProduct(false)}
+          closeLabel={tr("Close add product modal", "ปิดหน้าต่างเพิ่มสินค้า")}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newProduct.en?.trim() || !newProduct.th?.trim()) {
+                addToast({
+                  type: "warning",
+                  message: tr("Please enter both English and Thai names.", "กรุณากรอกชื่อสินค้าทั้งภาษาไทยและอังกฤษ"),
+                });
+                return;
+              }
+              const created: Product = {
+                id: "prod-" + Date.now(),
+                en: newProduct.en.trim(),
+                th: newProduct.th.trim(),
+                desc: newProduct.desc || "",
+                descTh: newProduct.descTh || "",
+                price: Number(newProduct.price) || 15,
+                stock: Number(newProduct.stock) || 50,
+                category: (newProduct.category as Product["category"]) || "milk",
+                image: newProduct.image || "/images/hot_soy_milk_bowl_1792747451795.jpg",
+                tag: newProduct.tag?.trim() || undefined,
+                tagTh: newProduct.tagTh?.trim() || undefined,
+              };
+              setProducts((prev) => [created, ...prev]);
+              setIsAddingProduct(false);
+              notifySuccess(
+                tr("Product created successfully", "เพิ่มสินค้าสำเร็จแล้ว"),
+                tr(`"${created.en}" is now active in the catalog and POS.`, `เพิ่ม "${created.th}" ลงในระบบและจุดขายเรียบร้อยแล้ว`),
+              );
+            }}
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("Category", "หมวดหมู่")}</label>
+                <select
+                  className="full"
+                  value={newProduct.category || "milk"}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, category: e.target.value as Product["category"] }))}
+                >
+                  <option value="milk">{tr("Soy milk (น้ำเต้าหู้)", "น้ำเต้าหู้")}</option>
+                  <option value="freshmilk">{tr("Fresh milk (นมสด)", "นมสด")}</option>
+                  <option value="ginger">{tr("Ginger water (น้ำขิง)", "น้ำขิง")}</option>
+                  <option value="treat">{tr("Donuts & bread (ปาท่องโก๋ & ขนมปัง)", "ปาท่องโก๋ & ขนมปัง")}</option>
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div>
+                  <label className="field-label">{tr("Price (THB)", "ราคา (บาท)")}</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="9999"
+                    required
+                    value={newProduct.price || 15}
+                    onChange={(e) => setNewProduct((prev) => ({ ...prev, price: Number(e.target.value) }))}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">{tr("Initial stock", "สต็อกเริ่มต้น")}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="9999"
+                    required
+                    value={newProduct.stock || 50}
+                    onChange={(e) => setNewProduct((prev) => ({ ...prev, stock: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("English name", "ชื่อภาษาอังกฤษ (English)")} *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Soy Milk with Gingko & Sesame Dumplings"
+                  value={newProduct.en || ""}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, en: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label">{tr("Thai name", "ชื่อภาษาไทย (Thai)")} *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น น้ำเต้าหู้บัวลอยงาดำแปะก๊วย"
+                  value={newProduct.th || ""}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, th: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="field-label">{tr("English description (Rich text)", "รายละเอียดภาษาอังกฤษ (Rich text)")}</label>
+              <RichTextEditor
+                value={newProduct.desc || ""}
+                onChange={(val) => setNewProduct((prev) => ({ ...prev, desc: val }))}
+                placeholder="Describe product highlights, serving style, or organic beans..."
+                ariaLabel="Product English description"
+                minHeight="100px"
+              />
+            </div>
+
+            <div>
+              <label className="field-label">{tr("Thai description (Rich text)", "รายละเอียดภาษาไทย (Rich text)")}</label>
+              <RichTextEditor
+                value={newProduct.descTh || ""}
+                onChange={(val) => setNewProduct((prev) => ({ ...prev, descTh: val }))}
+                placeholder="รายละเอียดวัตถุดิบ ความหวาน หรือกรรมวิธีคั่วสด..."
+                ariaLabel="Product Thai description"
+                minHeight="100px"
+              />
+            </div>
+
+            <div>
+              <label className="field-label">{tr("Image URL / Preset", "รูปภาพสินค้า")}</label>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="/images/... or /assets/..."
+                  value={newProduct.image || ""}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, image: e.target.value }))}
+                />
+                {newProduct.image && (
+                  <img
+                    src={newProduct.image}
+                    alt="Preview"
+                    style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--border)" }}
+                  />
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
+                <span style={{ color: "var(--muted)", alignSelf: "center" }}>{tr("Presets:", "ตัวอย่าง:")}</span>
+                {[
+                  { label: tr("Soy bowl", "น้ำเต้าหู้"), path: "/images/hot_soy_milk_bowl_1792747451795.jpg" },
+                  { label: tr("Dumplings", "บัวลอย"), path: "/images/sesame_dumpling_milk_1792747451641.jpg" },
+                  { label: tr("Ginger", "น้ำขิง"), path: "/images/ginger_tofu_pudding_1792747451451.jpg" },
+                  { label: tr("Youtiao", "ปาท่องโก๋"), path: "/images/youtiao_pandan_dip_1792747449551.jpg" },
+                  { label: tr("Steamed bread", "ขนมปังนึ่ง"), path: "/images/steamed_bread_kaya_1792747450824.jpg" },
+                  { label: tr("Original menu", "เมนูจริง"), path: "/assets/aistudio/Menu-Taofu_5311a441.jpg" },
+                ].map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    className="secondary"
+                    style={{ padding: "3px 8px", fontSize: "11px" }}
+                    onClick={() => setNewProduct((prev) => ({ ...prev, image: item.path }))}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("Badge / Tag (EN, Optional)", "ป้ายกำกับภาษาอังกฤษ (ถ้ามี)")}</label>
+                <input
+                  type="text"
+                  placeholder="e.g. POPULAR, NEW, ORGANIC"
+                  value={newProduct.tag || ""}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, tag: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label">{tr("Badge / Tag (TH, Optional)", "ป้ายกำกับภาษาไทย (ถ้ามี)")}</label>
+                <input
+                  type="text"
+                  placeholder="เช่น ยอดนิยม, เมนูใหม่"
+                  value={newProduct.tagTh || ""}
+                  onChange={(e) => setNewProduct((prev) => ({ ...prev, tagTh: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <button
+                type="button"
+                className="secondary full"
+                onClick={() => setIsAddingProduct(false)}
+              >
+                {tr("Cancel", "ยกเลิก")}
+              </button>
+              <button type="submit" className="primary full">
+                <PlusCircle size={15} />
+                {tr("Save & Publish Product", "บันทึกและเผยแพร่สินค้า")}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Edit Product Modal */}
+      {editingProduct && (
+        <Modal
+          title={tr(`Edit: ${editingProduct.en}`, `แก้ไข: ${editingProduct.th}`)}
+          close={() => setEditingProduct(null)}
+          closeLabel={tr("Close edit modal", "ปิดหน้าต่างแก้ไข")}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editingProduct.en.trim() || !editingProduct.th.trim()) {
+                addToast({
+                  type: "warning",
+                  message: tr("Please enter both English and Thai names.", "กรุณากรอกชื่อสินค้าทั้งภาษาไทยและอังกฤษ"),
+                });
+                return;
+              }
+              setProducts((prev) =>
+                prev.map((p) => (p.id === editingProduct.id ? editingProduct : p))
+              );
+              setEditingProduct(null);
+              notifySuccess(
+                tr("Product updated", "อัปเดตสินค้าสำเร็จ"),
+                tr(`Changes to "${editingProduct.en}" saved.`, `บันทึกการแก้ไข "${editingProduct.th}" แล้ว`),
+              );
+            }}
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("Category", "หมวดหมู่")}</label>
+                <select
+                  className="full"
+                  value={editingProduct.category}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, category: e.target.value as Product["category"] }) : null)}
+                >
+                  <option value="milk">{tr("Soy milk (น้ำเต้าหู้)", "น้ำเต้าหู้")}</option>
+                  <option value="freshmilk">{tr("Fresh milk (นมสด)", "นมสด")}</option>
+                  <option value="ginger">{tr("Ginger water (น้ำขิง)", "น้ำขิง")}</option>
+                  <option value="treat">{tr("Donuts & bread (ปาท่องโก๋ & ขนมปัง)", "ปาท่องโก๋ & ขนมปัง")}</option>
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div>
+                  <label className="field-label">{tr("Price (THB)", "ราคา (บาท)")}</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="9999"
+                    required
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, price: Number(e.target.value) }) : null)}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">{tr("Stock", "สต็อก")}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="9999"
+                    required
+                    value={editingProduct.stock}
+                    onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, stock: Number(e.target.value) }) : null)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("English name", "ชื่อภาษาอังกฤษ (English)")} *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingProduct.en}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, en: e.target.value }) : null)}
+                />
+              </div>
+              <div>
+                <label className="field-label">{tr("Thai name", "ชื่อภาษาไทย (Thai)")} *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingProduct.th}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, th: e.target.value }) : null)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="field-label">{tr("English description (Rich text)", "รายละเอียดภาษาอังกฤษ (Rich text)")}</label>
+              <RichTextEditor
+                value={editingProduct.desc || ""}
+                onChange={(val) => setEditingProduct((prev) => prev ? ({ ...prev, desc: val }) : null)}
+                placeholder="Describe product highlights..."
+                ariaLabel="Product English description"
+                minHeight="100px"
+              />
+            </div>
+
+            <div>
+              <label className="field-label">{tr("Thai description (Rich text)", "รายละเอียดภาษาไทย (Rich text)")}</label>
+              <RichTextEditor
+                value={editingProduct.descTh || ""}
+                onChange={(val) => setEditingProduct((prev) => prev ? ({ ...prev, descTh: val }) : null)}
+                placeholder="รายละเอียดสินค้า..."
+                ariaLabel="Product Thai description"
+                minHeight="100px"
+              />
+            </div>
+
+            <div>
+              <label className="field-label">{tr("Image URL / Preset", "รูปภาพสินค้า")}</label>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <input
+                  type="text"
+                  value={editingProduct.image}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, image: e.target.value }) : null)}
+                />
+                {editingProduct.image && (
+                  <img
+                    src={editingProduct.image}
+                    alt="Preview"
+                    style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--border)" }}
+                  />
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
+                <span style={{ color: "var(--muted)", alignSelf: "center" }}>{tr("Presets:", "ตัวอย่าง:")}</span>
+                {[
+                  { label: tr("Soy bowl", "น้ำเต้าหู้"), path: "/images/hot_soy_milk_bowl_1792747451795.jpg" },
+                  { label: tr("Dumplings", "บัวลอย"), path: "/images/sesame_dumpling_milk_1792747451641.jpg" },
+                  { label: tr("Ginger", "น้ำขิง"), path: "/images/ginger_tofu_pudding_1792747451451.jpg" },
+                  { label: tr("Youtiao", "ปาท่องโก๋"), path: "/images/youtiao_pandan_dip_1792747449551.jpg" },
+                  { label: tr("Steamed bread", "ขนมปังนึ่ง"), path: "/images/steamed_bread_kaya_1792747450824.jpg" },
+                  { label: tr("Original menu", "เมนูจริง"), path: "/assets/aistudio/Menu-Taofu_5311a441.jpg" },
+                ].map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    className="secondary"
+                    style={{ padding: "3px 8px", fontSize: "11px" }}
+                    onClick={() => setEditingProduct((prev) => prev ? ({ ...prev, image: item.path }) : null)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="field-label">{tr("Badge / Tag (EN)", "ป้ายกำกับภาษาอังกฤษ")}</label>
+                <input
+                  type="text"
+                  placeholder="e.g. POPULAR, HOT"
+                  value={editingProduct.tag || ""}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, tag: e.target.value }) : null)}
+                />
+              </div>
+              <div>
+                <label className="field-label">{tr("Badge / Tag (TH)", "ป้ายกำกับภาษาไทย")}</label>
+                <input
+                  type="text"
+                  placeholder="เช่น ยอดนิยม, เมนูแนะนำ"
+                  value={editingProduct.tagTh || ""}
+                  onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, tagTh: e.target.value }) : null)}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <button
+                type="button"
+                className="secondary full"
+                onClick={() => setEditingProduct(null)}
+              >
+                {tr("Cancel", "ยกเลิก")}
+              </button>
+              <button type="submit" className="primary full">
+                <Check size={15} />
+                {tr("Save Changes", "บันทึกข้อมูล")}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingProduct && (
+        <Modal
+          title={tr("Delete Product", "ยืนยันการลบสินค้า")}
+          close={() => setDeletingProduct(null)}
+          closeLabel={tr("Close delete confirmation", "ปิดหน้าต่างยืนยันการลบ")}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", gap: "14px", alignItems: "center", padding: "12px", background: "var(--surface-warm)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+              <img
+                src={deletingProduct.image}
+                alt=""
+                style={{ width: "54px", height: "54px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border)" }}
+              />
+              <div>
+                <strong style={{ fontSize: "16px", display: "block" }}>{pname(deletingProduct)}</strong>
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  {money(deletingProduct.price)} · {tr(`Stock: ${deletingProduct.stock}`, `คงเหลือ: ${deletingProduct.stock}`)}
+                </span>
+              </div>
+            </div>
+            <p style={{ color: "#b91c1c", fontSize: "13px", lineHeight: "1.5" }}>
+              {tr(
+                "Are you sure you want to remove this product? It will be removed from the online customer catalog, POS register, and kitchen tickets.",
+                "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกนำออกจากหน้าร้าน ระบบจุดขาย (POS) และรายการในครัว",
+              )}
+            </p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="secondary full"
+                onClick={() => setDeletingProduct(null)}
+              >
+                {tr("Cancel", "ยกเลิก")}
+              </button>
+              <button
+                type="button"
+                className="primary full"
+                style={{ background: "#dc2626", borderColor: "#b91c1c", color: "#fff" }}
+                onClick={() => {
+                  const idToRemove = deletingProduct.id;
+                  const nameToRemove = pname(deletingProduct);
+                  setProducts((prev) => prev.filter((p) => p.id !== idToRemove));
+                  setCart((prev) => prev.filter((item) => item.id !== idToRemove));
+                  setDeletingProduct(null);
+                  notify(tr(`Removed "${nameToRemove}" from menu.`, `ลบ "${nameToRemove}" ออกจากเมนูแล้ว`));
+                }}
+              >
+                <Trash2 size={15} />
+                {tr("Confirm Delete", "ยืนยันการลบ")}
               </button>
             </div>
           </div>
