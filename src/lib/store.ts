@@ -46,6 +46,9 @@ export type Order = {
   status: "received" | "preparing" | "ready" | "collected";
   created: string;
   plan: boolean;
+  orderType?: "walk-in" | "pickup";
+  tendered?: number;
+  change?: number;
 };
 export type Subscription = {
   id: string;
@@ -634,3 +637,24 @@ export function chime(enabled: boolean, ready = false) {
     /* Audio is optional when browser permissions prevent playback. */
   }
 }
+
+export function triggerHaptic(
+  type: "light" | "medium" | "heavy" | "success" = "light"
+) {
+  if (typeof window !== "undefined" && "navigator" in window && "vibrate" in navigator) {
+    try {
+      if (type === "light") {
+        navigator.vibrate(14);
+      } else if (type === "medium") {
+        navigator.vibrate(30);
+      } else if (type === "heavy") {
+        navigator.vibrate(55);
+      } else if (type === "success") {
+        navigator.vibrate([20, 50, 30]);
+      }
+    } catch {
+      /* Haptic feedback is optional and will fail silently if unsupported */
+    }
+  }
+}
+

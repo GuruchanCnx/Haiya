@@ -57,6 +57,7 @@ import {
   dates,
   windows,
   chime,
+  triggerHaptic,
   type Product,
   type CartItem,
   type Order,
@@ -64,6 +65,11 @@ import {
 } from "./lib/store";
 import Modal from "./components/Modal";
 import { RichTextEditor } from "./components/RichTextEditor";
+import { useLanguage, LanguageToggle } from "./context/LanguageContext";
+import { useToast, RealtimeOrderStatusNotifier } from "./context/ToastContext";
+import AccessibilityMenu from "./components/AccessibilityMenu";
+import BackToTop from "./components/BackToTop";
+import AdminRevenueChart from "./components/AdminRevenueChart";
 
 type View =
   | "menu"
@@ -74,31 +80,17 @@ type View =
   | "kitchen"
   | "admin";
 type AuditResult = { title: string; count: number; impact: string };
-export type ToastNotification = {
-  id: string;
-  type: "success" | "info" | "warning";
-  title?: string;
-  message: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-  duration?: number;
-};
-
-let toastCounter = 0;
-function getNextToastId(): string {
-  toastCounter = (toastCounter + 1) % 100000;
-  return `toast-${Date.now()}-${toastCounter}`;
-}
 
 export default function Wanchai() {
-  const [lang, setLang] = useSaved<"en" | "th">("lang", "en");
-  const tr = (en: string, th: string) => (lang === "en" ? en : th);
+  const { lang, tr } = useLanguage();
+  const { addToast } = useToast();
   const [theme, setTheme] = useSaved("theme", "light");
   const [contrast, setContrast] = useSaved("contrast", false);
   const [large, setLarge] = useSaved("large", false);
   const [motion, setMotion] = useSaved("motion", false);
+  const [orderType, setOrderType] = useSaved<"walk-in" | "pickup">("orderType", "walk-in");
+  const [adminSearch, setAdminSearch] = useState("");
+  const [posSearch, setPosSearch] = useState("");
   const [config, setConfig] = useSaved("config", defaultConfig);
   const [products, setProducts] = useSaved<Product[]>(
     "products-v3",
@@ -108,6 +100,7 @@ export default function Wanchai() {
   const [orders, setOrders] = useSaved<Order[]>("orders", initialOrders);
   const [subscriptions, setSubscriptions] = useSaved<Subscription[]>(
     "subscriptions",
+
     [],
   );
   const [view, setView] = useState<View>("menu");
@@ -124,7 +117,6 @@ export default function Wanchai() {
   const [detail, setDetail] = useState<Product | null>(null);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [customer, setCustomer] = useSaved("customer", { name: "", phone: "" });
-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [historyFilter, setHistoryFilter] = useState<
     "all" | "collected" | "active"
   >("all");
@@ -231,21 +223,6 @@ export default function Wanchai() {
     admin: tr("Settings & admin", "ตั้งค่าและจัดการ"),
   };
 
-  const addToast = (t: Omit<ToastNotification, "id">) => {
-    const id = getNextToastId();
-    const newToast: ToastNotification = { ...t, id };
-    setToasts((prev) => [...prev, newToast]);
-    const duration = t.duration || 4500;
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((item) => item.id !== id));
-    }, duration);
-    return id;
-  };
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const notify = (
     text: string,
     type: "success" | "info" | "warning" = "info",
@@ -349,6 +326,7 @@ export default function Wanchai() {
     if (!p || qty < 1) return;
     const existing = cart.find((i) => i.id === id)?.qty || 0;
     if (existing + qty > p.stock) {
+      triggerHaptic("heavy");
       addToast({
         type: "warning",
         title: tr("Stock limit", "สินค้ามีไม่เพียงพอ"),
@@ -359,6 +337,7 @@ export default function Wanchai() {
       });
       return;
     }
+    triggerHaptic("light");
     setPlan(false);
     setCart((old) => [
       ...old.filter((i) => i.id !== id),
@@ -387,6 +366,7 @@ export default function Wanchai() {
   const changeQty = (id: string, delta: number) => {
     const item = cart.find((i) => i.id === id);
     if (!item) return;
+    triggerHaptic(delta > 0 ? "light" : "medium");
     setPlan(false);
     if (delta > 0) {
       add(id);
@@ -436,18 +416,21 @@ export default function Wanchai() {
       );
       return;
     }
-    if (
-      !/^[+\d\s()-]{9,18}$/.test(customer.phone.trim()) ||
-      !/^\d{9,15}$/.test(customer.phone.replace(/\D/g, "")) ||
-      customer.name.trim().length < 2
-    ) {
-      setError(
-        tr(
-          "Please enter your name and a valid phone number (9–15 digits).",
-          "กรุณากรอกชื่อและเบอร์โทรศัพท์ที่ถูกต้อง (9–15 หลัก)",
-        ),
-      );
-      return;
+    const isWalkIn = orderType === "walk-in";
+    if (!isWalkIn) {
+      if (
+        !/^[+\d\s()-]{9,18}$/.test(customer.phone.trim()) ||
+        !/^\d{9,15}$/.test(customer.phone.replace(/\D/g, "")) ||
+        customer.name.trim().length < 2
+      ) {
+        setError(
+          tr(
+            "Please enter your name and a valid phone number (9–15 digits).",
+            "กรุณากรอกชื่อและเบอร์โทรศัพท์ที่ถูกต้อง (9–15 หลัก)",
+          ),
+        );
+        return;
+      }
     }
     const id = "WC-" + crypto.randomUUID().slice(0, 6).toUpperCase();
     const order: Order = {
@@ -457,14 +440,16 @@ export default function Wanchai() {
         return { name: p.en, nameTh: p.th, qty: item.qty, price: p.price };
       }),
       total,
-      date: pickupDate,
-      window: slot,
-      name: customer.name.trim(),
-      phone: customer.phone.trim(),
+      date: isWalkIn ? new Date().toISOString().split("T")[0] : pickupDate,
+      window: isWalkIn ? tr("Immediate (Walk-in)", "ทันที (หน้าร้าน)") : slot,
+      name: customer.name.trim() || (isWalkIn ? tr("Walk-in Guest", "ลูกค้าหน้าร้าน") : tr("Guest", "ลูกค้า")),
+      phone: customer.phone.trim() || (isWalkIn ? "Walk-in" : "-"),
       status: "received",
       created: new Date().toISOString(),
-      plan,
+      plan: isWalkIn ? false : plan,
+      orderType,
     };
+    triggerHaptic("success");
     setOrders((old) => [order, ...old]);
     setProducts((old) =>
       old.map((p) => ({
@@ -505,6 +490,68 @@ export default function Wanchai() {
         label: tr("View order details", "ดูรายละเอียดออเดอร์"),
         onClick: () => go("history"),
       },
+    );
+  };
+
+  const finalizePosOrder = () => {
+    if (!cart.length) {
+      notify(tr("Please add items to the POS order first.", "กรุณาเพิ่มสินค้าลงในออเดอร์ก่อน"));
+      return;
+    }
+    const id = "WC-" + crypto.randomUUID().slice(0, 6).toUpperCase();
+    const isWalkIn = orderType === "walk-in";
+    const tenderedVal = Number(cashTendered) || total;
+    const changeVal = tenderedVal >= total ? tenderedVal - total : 0;
+
+    const newOrder: Order = {
+      id,
+      items: cart.map((item) => {
+        const p = products.find((p) => p.id === item.id)!;
+        return { name: p.en, nameTh: p.th, qty: item.qty, price: p.price };
+      }),
+      total,
+      date: isWalkIn ? new Date().toISOString().split("T")[0] : pickupDate,
+      window: isWalkIn ? tr("Immediate (Walk-in Counter)", "ทันที (เคาน์เตอร์หน้าร้าน)") : slot,
+      name: customer.name.trim() || (isWalkIn ? tr("Walk-in Customer", "ลูกค้าหน้าร้าน") : tr("Guest", "ลูกค้า")),
+      phone: customer.phone.trim() || (isWalkIn ? "Walk-in" : "-"),
+      status: "ready",
+      created: new Date().toISOString(),
+      plan: false,
+      orderType,
+      tendered: tenderedVal,
+      change: changeVal,
+    };
+
+    setProducts((old) =>
+      old.map((p) => ({
+        ...p,
+        stock: p.stock - (cart.find((i) => i.id === p.id)?.qty || 0),
+      }))
+    );
+
+    setOrders((old) => [newOrder, ...old]);
+    setCart([]);
+    setDial("");
+    setCashTendered("");
+    triggerHaptic("success");
+    chime(config.audio, true);
+
+    setReceiptOrder(newOrder);
+    setModal("receipt");
+
+    notifySuccess(
+      tr("Order completed & paid!", "บันทึกออเดอร์และรับเงินเรียบร้อยแล้ว!"),
+      tr(
+        `Order #${id} created. Total: ${money(total)}${tenderedVal > total ? ` · Change: ${money(changeVal)}` : ""}`,
+        `สร้างออเดอร์ #${id} เรียบร้อยแล้ว ยอดรวม ${money(total)}${tenderedVal > total ? ` · เงินทอน: ${money(changeVal)}` : ""}`
+      ),
+      {
+        label: tr("View receipt", "ดูใบเสร็จ"),
+        onClick: () => {
+          setReceiptOrder(newOrder);
+          setModal("receipt");
+        },
+      }
     );
   };
   const updateStatus = (id: string, status: Order["status"]) => {
@@ -879,16 +926,15 @@ export default function Wanchai() {
               <span className="green-dot" />
               {tr("Freshly brewed, daily", "ต้มสดใหม่ทุกวัน")}
             </span>
-            <span className="header-divider" />
-            <button
-              className="language-button"
-              onClick={() => setLang(lang === "en" ? "th" : "en")}
-              aria-label={tr("Switch to Thai", "เปลี่ยนเป็นภาษาอังกฤษ")}
-            >
-              <span className={lang === "en" ? "selected" : ""}>EN</span>
-              <i>/</i>
-              <span className={lang === "th" ? "selected" : ""}>ไทย</span>
-            </button>
+            <AccessibilityMenu
+              contrast={contrast}
+              setContrast={setContrast}
+              large={large}
+              setLarge={setLarge}
+              motion={motion}
+              setMotion={setMotion}
+            />
+            <LanguageToggle />
             <button
               className="icon-button"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
@@ -2134,269 +2180,382 @@ export default function Wanchai() {
                   "เลือกสินค้า กดจำนวน แล้วเพิ่มลงตะกร้า ชำระเงินเมื่อรับสินค้า",
                 )}
               />
-              <div className="pos-layout">
-                <section className="panel pos-panel">
-                  {/* Category switcher for products in POS */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-                    <h3 style={{ margin: 0 }}>{tr("1. Choose a little goodness", "1. เลือกสินค้า")}</h3>
-                    <div className="inventory-category-tabs" style={{ margin: 0 }}>
+              <div className="pos-layout pos-layout-tablet-duo">
+                {/* Column 1: Product Selection Catalog */}
+                <div className="pos-catalog-column">
+                  <section className="panel pos-panel">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <Store size={18} className="text-emerald-800" />
+                        <h3 style={{ margin: 0 }}>{tr("1. Product Catalog", "1. เมนูสินค้าทั้งหมด")}</h3>
+                      </div>
+
+                      {/* POS search bar */}
+                      <div className="inventory-search-bar-wrap" style={{ maxWidth: "240px", padding: "4px 10px" }}>
+                        <Search size={14} className="text-muted" />
+                        <input
+                          type="text"
+                          placeholder={tr("Quick filter...", "ค้นหาเร็ว...")}
+                          value={posSearch}
+                          onChange={(e) => setPosSearch(e.target.value)}
+                          style={{ fontSize: "12px" }}
+                        />
+                        {posSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setPosSearch("")}
+                            style={{ border: 0, padding: 0, cursor: "pointer", color: "var(--muted)", fontSize: "11px" }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Category switcher */}
+                    <div className="inventory-category-tabs" style={{ marginBottom: "14px" }}>
                       {[
-                        { id: "all" as const, label: tr("All", "ทั้งหมด") },
+                        { id: "all" as const, label: tr("All items", "ทั้งหมด") },
                         { id: "milk" as const, label: tr("Soy milk", "น้ำเต้าหู้") },
                         { id: "freshmilk" as const, label: tr("Fresh milk", "นมสด") },
                         { id: "ginger" as const, label: tr("Ginger", "น้ำขิง") },
-                        { id: "treat" as const, label: tr("Treats", "ของว่าง") },
+                        { id: "treat" as const, label: tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง") },
                       ].map((t) => (
                         <button
                           key={t.id}
                           type="button"
                           className={posCategory === t.id ? "active" : ""}
-                          onClick={() => setPosCategory(t.id)}
-                          style={{ padding: "4px 10px", fontSize: "11px" }}
+                          onClick={() => {
+                            triggerHaptic("light");
+                            setPosCategory(t.id);
+                          }}
+                          style={{ padding: "5px 12px", fontSize: "11px" }}
                         >
                           {t.label}
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  <div className="pos-products">
-                    {products
-                      .filter((p) => posCategory === "all" || p.category === posCategory)
-                      .map((p) => (
-                        <button
-                          className={selected === p.id ? "selected" : ""}
-                          onClick={() => setSelected(p.id)}
-                          key={p.id}
-                        >
-                          <img src={p.image} alt="" />
-                          <strong>{pname(p)}</strong>
-                          <span>{money(p.price)}</span>
-                        </button>
-                      ))}
-                  </div>
-
-                  {/* Mode switch: Quantity Dialpad VS Cash Calculator */}
-                  <div className="pos-mode-switch">
-                    <button
-                      type="button"
-                      className={`pos-mode-btn ${posMode === "dial" ? "active" : ""}`}
-                      onClick={() => setPosMode("dial")}
-                    >
-                      <Keyboard size={15} />
-                      {tr("Big Quantity Dialpad", "แป้นกดจำนวนใหญ่")}
-                    </button>
-                    <button
-                      type="button"
-                      className={`pos-mode-btn ${posMode === "cash" ? "active" : ""}`}
-                      onClick={() => setPosMode("cash")}
-                    >
-                      <Coins size={15} />
-                      {tr("Cash & Change Calculator", "คำนวณเงินสดและเงินทอน")}
-                    </button>
-                  </div>
-
-                  {posMode === "dial" ? (
-                    <>
-                      <div className="dial-header">
-                        <h3>{tr("2. How many?", "2. จำนวนเท่าไร?")}</h3>
-                        <span style={{ fontSize: "11px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <Keyboard size={14} />
-                          {tr("Big touch targets", "ปุ่มกดขนาดใหญ่สัมผัสง่าย")}
-                        </span>
-                      </div>
-
-                      <output className="dial-display" aria-live="polite">
-                        <span>
-                          {pname(products.find((p) => p.id === selected) || products[0])}
-                        </span>
-                        <b>{dial || "0"}</b>
-                      </output>
-
-                      {/* Quick Presets */}
-                      <div className="pos-quick-presets">
-                        {[1, 2, 5, 10].map((num) => (
+                    {/* Products Grid */}
+                    <div className="pos-products">
+                      {products
+                        .filter((p) => posCategory === "all" || p.category === posCategory)
+                        .filter((p) => {
+                          if (!posSearch.trim()) return true;
+                          const q = posSearch.toLowerCase();
+                          return p.en.toLowerCase().includes(q) || p.th.toLowerCase().includes(q);
+                        })
+                        .map((p) => (
                           <button
-                            key={num}
-                            type="button"
-                            className="pos-quick-btn"
+                            className={selected === p.id ? "selected" : ""}
                             onClick={() => {
-                              chime(config.audio);
-                              setDial(String(num));
+                              setSelected(p.id);
+                              add(p.id, 1);
                             }}
+                            key={p.id}
+                            title={tr(`Click to add 1 ${p.en}`, `คลิกเพื่อเพิ่ม ${p.th} 1 รายการ`)}
                           >
-                            +{num}
+                            <img src={p.image} alt="" />
+                            <strong>{pname(p)}</strong>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: "3px" }}>
+                              <span style={{ fontWeight: "700" }}>{money(p.price)}</span>
+                              <span style={{
+                                fontSize: "9px",
+                                padding: "1px 5px",
+                                borderRadius: "6px",
+                                background: p.stock <= 10 ? "#fee2e2" : "var(--soft-green)",
+                                color: p.stock <= 10 ? "#b91c1c" : "var(--green)",
+                                fontWeight: "600"
+                              }}>
+                                {p.stock > 0 ? `${p.stock} left` : "Out"}
+                              </span>
+                            </div>
                           </button>
                         ))}
-                      </div>
+                    </div>
+                  </section>
+                </div>
 
-                      {/* Line subtotal preview */}
-                      <div className="pos-subtotal-badge">
-                        <span>{tr("Item subtotal:", "ยอดรวมสินค้านี้:")}</span>
-                        <strong>
-                          {money(
-                            (Number(dial) || 1) *
-                              (products.find((p) => p.id === selected)?.price || 0),
-                          )}
-                        </strong>
+                {/* Column 2: Active Order Summary & Terminal */}
+                <div className="pos-order-column">
+                  <aside className="order-box panel liquid-glass-card" style={{ width: "100%" }}>
+                    <div className="order-box-head">
+                      <div>
+                        <h3 style={{ margin: 0 }}>{tr("Active Order Summary", "สรุปออเดอร์")}</h3>
+                        <small style={{ color: "var(--muted)", fontSize: "11px" }}>
+                          {tr("Register #01 ·Hai Ya House", "แคชเชียร์ 01 · บ้านหายยา")}
+                        </small>
                       </div>
+                      <span style={{ fontSize: "12px", fontWeight: "600" }}>
+                        {totalCount} {tr("items", "รายการ")}
+                      </span>
+                    </div>
 
-                      {/* Big Dialpad */}
-                      <div className="dial-pad big-dialpad">
-                        {[
-                          "1",
-                          "2",
-                          "3",
-                          "4",
-                          "5",
-                          "6",
-                          "7",
-                          "8",
-                          "9",
-                          "C",
-                          "0",
-                          "⌫",
-                        ].map((key) => (
-                          <button
-                            aria-label={
-                              key === "C"
-                                ? tr("Clear quantity", "ล้างจำนวน")
-                                : key === "⌫"
-                                  ? tr("Delete last digit", "ลบตัวเลขท้าย")
-                                  : key
-                            }
-                            key={key}
-                            className={
-                              key === "C"
-                                ? "action-clear"
-                                : key === "⌫"
-                                  ? "action-backspace"
-                                  : ""
-                            }
-                            onClick={() => {
-                              if (navigator.vibrate)
-                                navigator.vibrate(
-                                  config.haptic === "double"
-                                    ? [20, 30, 40]
-                                    : config.haptic === "strong"
-                                      ? 50
-                                      : 15,
-                                );
-                              setDial((d) =>
-                                key === "C"
-                                  ? ""
-                                  : key === "⌫"
-                                    ? d.slice(0, -1)
-                                    : d.length < 3
-                                      ? d === "0"
-                                        ? key
-                                        : d + key
-                                      : d,
-                              );
-                            }}
-                          >
-                            {key}
-                          </button>
-                        ))}
-                      </div>
-
+                    {/* Walk-in vs Pickup toggle */}
+                    <div className="order-type-toggle" style={{ marginTop: "10px" }}>
                       <button
-                        className="primary full pos-add"
-                        disabled={!Number(dial)}
+                        type="button"
+                        className={`order-type-btn ${orderType === "walk-in" ? "active" : ""}`}
                         onClick={() => {
-                          add(selected, Number(dial));
-                          setDial("");
+                          triggerHaptic("light");
+                          setOrderType("walk-in");
                         }}
                       >
-                        <Plus size={18} />
-                        {tr("Add quantity to bag", "เพิ่มจำนวนลงตะกร้า")}
+                        <Store size={14} />
+                        {tr("Walk-in (Counter)", "หน้าร้าน (รับทันที)")}
                       </button>
-                    </>
-                  ) : (
-                    /* Cash Tender & Change Calculator */
-                    <div className="cash-calculator-box">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <small style={{ color: "var(--muted)" }}>{tr("Current Bag Total", "ยอดรวมตะกร้าปัจจุบัน")}</small>
-                          <h2 style={{ fontSize: "28px", color: "var(--green)", margin: "4px 0" }}>{money(total)}</h2>
-                        </div>
-                        <span style={{ fontSize: "12px", background: "var(--surface-warm)", padding: "4px 10px", borderRadius: "12px" }}>
-                          {cart.reduce((s, i) => s + i.qty, 0)} {tr("items", "รายการ")}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        className={`order-type-btn ${orderType === "pickup" ? "active" : ""}`}
+                        onClick={() => {
+                          triggerHaptic("light");
+                          setOrderType("pickup");
+                        }}
+                      >
+                        <Clock3 size={14} />
+                        {tr("Daily Pickup", "รับประจำวัน")}
+                      </button>
+                    </div>
 
-                      <div style={{ marginTop: "14px" }}>
-                        <small style={{ color: "var(--muted)" }}>{tr("Quick Cash Tendered", "จำนวนเงินสดที่ได้รับ")}</small>
-                        <div className="cash-quick-denominations">
-                          <button
-                            type="button"
-                            className="cash-bill-btn exact-btn"
-                            onClick={() => setCashTendered(String(total))}
-                          >
-                            {tr("Exact", "พอดี")} ({money(total)})
-                          </button>
-                          {[20, 50, 100, 500, 1000].map((bill) => (
+                    {/* Cart Items List */}
+                    {cartContents}
+
+                    {/* POS Mode Switch: Dialpad VS Cash Calculator */}
+                    <div className="pos-mode-switch" style={{ marginTop: "14px" }}>
+                      <button
+                        type="button"
+                        className={`pos-mode-btn ${posMode === "dial" ? "active" : ""}`}
+                        onClick={() => {
+                          triggerHaptic("light");
+                          setPosMode("dial");
+                        }}
+                      >
+                        <Keyboard size={14} />
+                        {tr("Dialpad", "แป้นกดจำนวน")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`pos-mode-btn ${posMode === "cash" ? "active" : ""}`}
+                        onClick={() => {
+                          triggerHaptic("light");
+                          setPosMode("cash");
+                        }}
+                      >
+                        <Coins size={14} />
+                        {tr("Cash & Change", "เงินสด/เงินทอน")}
+                      </button>
+                    </div>
+
+                    {posMode === "dial" ? (
+                      <div style={{ marginTop: "10px" }}>
+                        <output className="dial-display" aria-live="polite">
+                          <span>
+                            {pname(products.find((p) => p.id === selected) || products[0])}
+                          </span>
+                          <b>{dial || "0"}</b>
+                        </output>
+
+                        {/* Quick Presets */}
+                        <div className="pos-quick-presets">
+                          {[1, 2, 5, 10].map((num) => (
                             <button
-                              key={bill}
+                              key={num}
                               type="button"
-                              className="cash-bill-btn"
-                              onClick={() => setCashTendered(String(bill))}
+                              className="pos-quick-btn"
+                              onClick={() => {
+                                triggerHaptic("light");
+                                chime(config.audio);
+                                setDial(String(num));
+                              }}
                             >
-                              ฿{bill}
+                              +{num}
                             </button>
                           ))}
                         </div>
-                      </div>
 
-                      <label style={{ display: "block", marginTop: "12px" }}>
-                        <small style={{ color: "var(--muted)" }}>{tr("Cash received input (THB)", "ใส่จำนวนเงินสดที่ได้รับ")}</small>
-                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                        {/* Big Dialpad */}
+                        <div className="dial-pad big-dialpad">
+                          {[
+                            "1", "2", "3",
+                            "4", "5", "6",
+                            "7", "8", "9",
+                            "C", "0", "⌫",
+                          ].map((key) => (
+                            <button
+                              key={key}
+                              className={
+                                key === "C"
+                                  ? "action-clear"
+                                  : key === "⌫"
+                                    ? "action-backspace"
+                                    : ""
+                              }
+                              onClick={() => {
+                                triggerHaptic("light");
+                                setDial((d) =>
+                                  key === "C"
+                                    ? ""
+                                    : key === "⌫"
+                                      ? d.slice(0, -1)
+                                      : d.length < 3
+                                        ? d === "0"
+                                          ? key
+                                          : d + key
+                                        : d,
+                                );
+                              }}
+                            >
+                              {key}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          className="primary full pos-add"
+                          disabled={!Number(dial)}
+                          onClick={() => {
+                            add(selected, Number(dial));
+                            setDial("");
+                          }}
+                          style={{ marginTop: "8px" }}
+                        >
+                          <Plus size={16} />
+                          {tr("Add selected quantity", "เพิ่มจำนวนที่กด")}
+                        </button>
+                      </div>
+                    ) : (
+                      /* Cash Tender & Change Calculator */
+                      <div className="cash-calculator-box" style={{ marginTop: "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <small style={{ color: "var(--muted)" }}>{tr("Current Total", "ยอดชำระ")}</small>
+                            <h2 style={{ fontSize: "24px", color: "var(--green)", margin: "2px 0" }}>{money(total)}</h2>
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: "8px" }}>
+                          <small style={{ color: "var(--muted)", fontSize: "11px" }}>{tr("Tendered Cash", "รับเงินสดมา")}</small>
+                          <div className="cash-quick-denominations">
+                            <button
+                              type="button"
+                              className="cash-bill-btn exact-btn"
+                              onClick={() => {
+                                triggerHaptic("light");
+                                setCashTendered(String(total));
+                              }}
+                            >
+                              {tr("Exact", "พอดี")}
+                            </button>
+                            {[20, 50, 100, 500, 1000].map((bill) => (
+                              <button
+                                key={bill}
+                                type="button"
+                                className="cash-bill-btn"
+                                onClick={() => {
+                                  triggerHaptic("light");
+                                  setCashTendered(String(bill));
+                                }}
+                              >
+                                ฿{bill}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
                           <input
                             type="number"
                             min="0"
-                            placeholder="0"
+                            placeholder={tr("Enter cash amount...", "ใส่ยอดเงินที่รับ...")}
                             value={cashTendered}
                             onChange={(e) => setCashTendered(e.target.value)}
-                            style={{ fontSize: "18px", fontWeight: "600", padding: "8px 12px" }}
+                            style={{ fontSize: "16px", fontWeight: "600", padding: "6px 10px" }}
                           />
                           <button
                             type="button"
                             className="secondary"
-                            onClick={() => setCashTendered("")}
+                            onClick={() => {
+                              triggerHaptic("light");
+                              setCashTendered("");
+                            }}
                           >
                             {tr("Clear", "ล้าง")}
                           </button>
                         </div>
-                      </label>
 
-                      {/* Change Due calculation */}
-                      {Boolean(cashTendered && Number(cashTendered) > 0) && (
-                        <div
-                          className={`change-due-banner ${
-                            Number(cashTendered) >= total ? "positive" : "negative"
-                          }`}
-                        >
-                          <div>
+                        {/* Change Due banner */}
+                        {Boolean(cashTendered && Number(cashTendered) > 0) && (
+                          <div
+                            className={`change-due-banner ${
+                              Number(cashTendered) >= total ? "positive" : "negative"
+                            }`}
+                            style={{ marginTop: "8px" }}
+                          >
+                            <div>
+                              <strong>
+                                {Number(cashTendered) >= total
+                                  ? tr("Change Due:", "เงินทอน:")
+                                  : tr("Short:", "ยังขาด:")}
+                              </strong>
+                            </div>
                             <strong>
                               {Number(cashTendered) >= total
-                                ? tr("Change to return:", "เงินทอนลูกค้า:")
-                                : tr("Remaining to collect:", "ยังขาดอีก:")}
+                                ? money(Number(cashTendered) - total)
+                                : money(total - Number(cashTendered))}
                             </strong>
-                            <div style={{ fontSize: "11px", opacity: 0.85 }}>
-                              {tr("Cash:", "รับมา:")} {money(Number(cashTendered))} · {tr("Due:", "ยอด:")} {money(total)}
-                            </div>
                           </div>
-                          <strong>
-                            {Number(cashTendered) >= total
-                              ? money(Number(cashTendered) - total)
-                              : money(total - Number(cashTendered))}
-                          </strong>
-                        </div>
-                      )}
+                        )}
+                      </div>
+                    )}
+
+                    {/* Order Total row */}
+                    <div className="order-total" style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--line)" }}>
+                      <span>{tr("Order Total", "ยอดรวมทั้งหมด")}</span>
+                      <b>{money(total)}</b>
                     </div>
-                  )}
-                </section>
-                {orderBox}
+
+                    {/* Finalize Actions */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
+                      <button
+                        type="button"
+                        className="primary full"
+                        disabled={!cart.length}
+                        onClick={finalizePosOrder}
+                        style={{ minHeight: "46px", fontSize: "13px", fontWeight: "700" }}
+                      >
+                        <Check size={18} />
+                        {tr("Complete & Print Order", "จบการขายและพิมพ์ใบเสร็จ")}
+                      </button>
+
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          className="secondary full"
+                          disabled={!cart.length}
+                          onClick={openCheckout}
+                          style={{ fontSize: "11px" }}
+                        >
+                          {tr("Review Details", "ดูรายละเอียด")}
+                        </button>
+                        {cart.length > 0 && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => {
+                              triggerHaptic("heavy");
+                              setCart([]);
+                              setCashTendered("");
+                            }}
+                            title={tr("Clear bag", "ล้างตะกร้า")}
+                            style={{ fontSize: "11px", color: "#b91c1c" }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </aside>
+                </div>
               </div>
             </>
           )}
@@ -2465,7 +2624,12 @@ export default function Wanchai() {
                     >
                       <div className="order-card-top">
                         <span className="eyebrow">{o.id}</span>
-                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          {o.orderType === "walk-in" || o.window?.includes("Walk-in") ? (
+                            <span className="walk-in-pill">🚶 {tr("Walk-in", "หน้าร้าน")}</span>
+                          ) : (
+                            <span className="pickup-pill">🛵 {tr("Pickup", "รับล่วงหน้า")}</span>
+                          )}
                           <span className="receipt-click-hint">
                             <Receipt size={11} /> {tr("Receipt", "ใบเสร็จ")}
                           </span>
@@ -2559,8 +2723,9 @@ export default function Wanchai() {
               </div>
               <div className="category-tabs admin-tabs">
                 {[
-                  ["settings", tr("House settings", "ตั้งค่าร้าน")],
+                  ["analytics", tr("Revenue & Analytics", "รายได้และแนวโน้ม")],
                   ["inventory", tr("Products & stock", "สินค้าและสต็อก")],
+                  ["settings", tr("House settings", "ตั้งค่าร้าน")],
                   ["content", tr("Hero wall & story", "ผนังฮีโร่และเรื่องราว")],
                   ["accessibility", tr("Accessibility", "การเข้าถึง")],
                 ].map(([id, text]) => (
@@ -2573,6 +2738,11 @@ export default function Wanchai() {
                   </button>
                 ))}
               </div>
+              {adminTab === "analytics" && (
+                <section style={{ marginBottom: "20px" }}>
+                  <AdminRevenueChart orders={orders} />
+                </section>
+              )}
               {adminTab === "settings" && (
                 <form
                   className="panel settings-panel"
@@ -2750,24 +2920,45 @@ export default function Wanchai() {
                     </button>
                   </div>
 
-                  {/* Category Filter Tabs */}
-                  <div className="inventory-category-tabs" style={{ margin: "14px 0" }}>
-                    {[
-                      { id: "all" as const, label: tr("All items", "ทั้งหมด"), count: products.length },
-                      { id: "milk" as const, label: tr("Soy milk", "น้ำเต้าหู้"), count: products.filter(p => p.category === "milk").length },
-                      { id: "freshmilk" as const, label: tr("Fresh milk", "นมสด"), count: products.filter(p => p.category === "freshmilk").length },
-                      { id: "ginger" as const, label: tr("Ginger water", "น้ำขิง"), count: products.filter(p => p.category === "ginger").length },
-                      { id: "treat" as const, label: tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง"), count: products.filter(p => p.category === "treat").length },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        className={adminCategory === tab.id ? "active" : ""}
-                        onClick={() => setAdminCategory(tab.id)}
-                      >
-                        {tab.label} ({tab.count})
-                      </button>
-                    ))}
+                  {/* Search and Category Filter Bar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", margin: "14px 0", flexWrap: "wrap" }}>
+                    <div className="inventory-search-bar-wrap">
+                      <Search size={15} className="text-muted" />
+                      <input
+                        type="text"
+                        placeholder={tr("Search by product name or code...", "ค้นหาสินค้าตามชื่อหรือรหัส...")}
+                        value={adminSearch}
+                        onChange={(e) => setAdminSearch(e.target.value)}
+                      />
+                      {adminSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setAdminSearch("")}
+                          style={{ border: 0, padding: 0, cursor: "pointer", color: "var(--muted)", fontSize: "12px" }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="inventory-category-tabs" style={{ margin: 0 }}>
+                      {[
+                        { id: "all" as const, label: tr("All items", "ทั้งหมด"), count: products.length },
+                        { id: "milk" as const, label: tr("Soy milk", "น้ำเต้าหู้"), count: products.filter(p => p.category === "milk").length },
+                        { id: "freshmilk" as const, label: tr("Fresh milk", "นมสด"), count: products.filter(p => p.category === "freshmilk").length },
+                        { id: "ginger" as const, label: tr("Ginger water", "น้ำขิง"), count: products.filter(p => p.category === "ginger").length },
+                        { id: "treat" as const, label: tr("Donuts & bread", "ปาท่องโก๋ & ขนมปัง"), count: products.filter(p => p.category === "treat").length },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          className={adminCategory === tab.id ? "active" : ""}
+                          onClick={() => setAdminCategory(tab.id)}
+                        >
+                          {tab.label} ({tab.count})
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="table-scroll">
@@ -2778,13 +2969,22 @@ export default function Wanchai() {
                           <th>{tr("Product", "สินค้า")}</th>
                           <th>{tr("Category", "หมวดหมู่")}</th>
                           <th>{tr("Price · THB", "ราคา · บาท")}</th>
-                          <th>{tr("Available", "คงเหลือ")}</th>
+                          <th>{tr("Available & Status", "คงเหลือและสถานะ")}</th>
                           <th style={{ textAlign: "right" }}>{tr("Actions", "การจัดการ")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {products
                           .filter((p) => adminCategory === "all" || p.category === adminCategory)
+                          .filter((p) => {
+                            if (!adminSearch.trim()) return true;
+                            const q = adminSearch.toLowerCase();
+                            return (
+                              p.en.toLowerCase().includes(q) ||
+                              p.th.toLowerCase().includes(q) ||
+                              p.id.toLowerCase().includes(q)
+                            );
+                          })
                           .map((p, filteredIdx, currentList) => (
                             <tr key={p.id}>
                               <td>
@@ -2867,31 +3067,46 @@ export default function Wanchai() {
                                 />
                               </td>
                               <td>
-                                <input
-                                  aria-label={tr(`${p.en} stock`, `สต็อก${p.th}`)}
-                                  type="number"
-                                  min="0"
-                                  max="999"
-                                  value={p.stock}
-                                  onChange={(e) =>
-                                    setProducts((old) =>
-                                      old.map((i) =>
-                                        i.id === p.id
-                                          ? {
-                                              ...i,
-                                              stock: Math.max(
-                                                0,
-                                                Math.min(
-                                                  999,
-                                                  Number(e.target.value),
+                                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                                  <input
+                                    aria-label={tr(`${p.en} stock`, `สต็อก${p.th}`)}
+                                    type="number"
+                                    min="0"
+                                    max="999"
+                                    value={p.stock}
+                                    onChange={(e) =>
+                                      setProducts((old) =>
+                                        old.map((i) =>
+                                          i.id === p.id
+                                            ? {
+                                                ...i,
+                                                stock: Math.max(
+                                                  0,
+                                                  Math.min(
+                                                    999,
+                                                    Number(e.target.value),
+                                                  ),
                                                 ),
-                                              ),
-                                            }
-                                          : i,
-                                      ),
-                                    )
-                                  }
-                                />
+                                              }
+                                            : i,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  {p.stock === 0 ? (
+                                    <span className="inventory-badge-out">
+                                      ✕ {tr("Out of Stock", "สินค้าหมด")}
+                                    </span>
+                                  ) : p.stock <= 10 ? (
+                                    <span className="inventory-badge-low">
+                                      ⚠ {tr(`Low Stock (${p.stock})`, `เหลือน้อย (${p.stock})`)}
+                                    </span>
+                                  ) : (
+                                    <span className="inventory-badge-ok">
+                                      ✓ {tr("Adequate", "สต็อกพร้อม")}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td style={{ textAlign: "right" }}>
                                 <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
@@ -3221,56 +3436,14 @@ export default function Wanchai() {
           </b>
         </button>
       )}
-      {toasts.length > 0 && (
-        <aside
-          className="toast-container"
-          aria-label={tr("Notifications", "การแจ้งเตือน")}
-          aria-live="polite"
-        >
-          {toasts.map((t) => (
-            <div
-              key={t.id}
-              className={`toast-card toast-${t.type}`}
-              role="status"
-            >
-              <span className="toast-icon">
-                {t.type === "success" ? (
-                  <CheckCircle2 size={18} strokeWidth={2.2} />
-                ) : t.type === "warning" ? (
-                  <HelpCircle size={18} />
-                ) : (
-                  <Check size={18} />
-                )}
-              </span>
-              <div className="toast-body">
-                {t.title && <strong className="toast-title">{t.title}</strong>}
-                <p className="toast-message">{t.message}</p>
-                {t.action && (
-                  <button
-                    type="button"
-                    className="toast-action"
-                    onClick={() => {
-                      t.action?.onClick();
-                      removeToast(t.id);
-                    }}
-                  >
-                    {t.action.label}
-                    <ArrowRight size={13} />
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                className="toast-close"
-                aria-label={tr("Dismiss notification", "ปิดการแจ้งเตือน")}
-                onClick={() => removeToast(t.id)}
-              >
-                <X size={15} />
-              </button>
-            </div>
-          ))}
-        </aside>
-      )}
+      <RealtimeOrderStatusNotifier
+        orders={orders}
+        onViewReceipt={(ord) => {
+          setReceiptOrder(ord);
+          setModal("receipt");
+        }}
+      />
+      <BackToTop />
       {detail && (
         <Modal
           title={pname(detail)}
@@ -3345,13 +3518,40 @@ export default function Wanchai() {
                 )}
               </p>
               <div className="summary-cart">{cartContents}</div>
+
+              {/* Walk-in Counter VS Daily Pickup toggle */}
+              <div className="order-type-toggle">
+                <button
+                  type="button"
+                  className={`order-type-btn ${orderType === "walk-in" ? "active" : ""}`}
+                  onClick={() => {
+                    triggerHaptic("light");
+                    setOrderType("walk-in");
+                  }}
+                >
+                  <Store size={14} />
+                  {tr("Walk-in Counter (Immediate)", "รับทันทีที่ร้าน (หน้าร้าน)")}
+                </button>
+                <button
+                  type="button"
+                  className={`order-type-btn ${orderType === "pickup" ? "active" : ""}`}
+                  onClick={() => {
+                    triggerHaptic("light");
+                    setOrderType("pickup");
+                  }}
+                >
+                  <Clock3 size={14} />
+                  {tr("Scheduled Daily Pickup", "จองรับล่วงหน้าประจำวัน")}
+                </button>
+              </div>
+
               <div className="form-grid">
                 <label>
-                  {tr("Your name", "ชื่อของคุณ")}
+                  {tr("Your name", "ชื่อของคุณ")} {orderType === "walk-in" ? `(${tr("optional", "ไม่ระบุก็ได้")})` : ""}
                   <input
-                    required
+                    required={orderType === "pickup"}
                     autoComplete="name"
-                    minLength={2}
+                    minLength={orderType === "pickup" ? 2 : 0}
                     maxLength={80}
                     value={customer.name}
                     onChange={(e) =>
@@ -3364,9 +3564,9 @@ export default function Wanchai() {
                   />
                 </label>
                 <label>
-                  {tr("Phone number", "เบอร์โทรศัพท์")}
+                  {tr("Phone number", "เบอร์โทรศัพท์")} {orderType === "walk-in" ? `(${tr("optional", "ไม่ระบุก็ได้")})` : ""}
                   <input
-                    required
+                    required={orderType === "pickup"}
                     type="tel"
                     autoComplete="tel"
                     maxLength={18}
@@ -3382,12 +3582,34 @@ export default function Wanchai() {
                 <MapPin size={21} />
                 <div>
                   <strong>
-                    {tr("One house. One pickup spot.", "บ้านเดียว จุดรับเดียว")}
+                    {orderType === "walk-in"
+                      ? tr("Walk-in Counter Service · Ready in minutes", "บริการหน้าร้าน · พร้อมรับทันที")
+                      : tr("One house. One pickup spot.", "บ้านเดียว จุดรับเดียว")}
                   </strong>
                   <p>{tr(config.address, config.addressTh)}</p>
                 </div>
               </div>
-              {pickupFields}
+              {orderType === "pickup" ? (
+                pickupFields
+              ) : (
+                <div style={{
+                  padding: "10px 14px",
+                  background: "var(--soft-green)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--green)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  margin: "8px 0"
+                }}>
+                  <span className="green-dot" />
+                  {tr(
+                    "Walk-in order prepared immediately upon ordering. Pay at counter.",
+                    "ออเดอร์หน้าร้านจัดเตรียมทันทีเมื่อสั่ง ชำระเงินสดหรือสแกนที่เคาน์เตอร์"
+                  )}
+                </div>
+              )}
               <div className="summary-money">
                 <span>{tr("Subtotal", "ยอดรวมย่อย")}</span>
                 <b>{money(subtotal)}</b>
@@ -3723,6 +3945,14 @@ export default function Wanchai() {
                 <strong>{tr("Status:", "สถานะ:")}</strong> {statusLabel(receiptOrder.status)}
               </div>
               <div>
+                <strong>{tr("Service:", "ประเภท:")}</strong>{" "}
+                {receiptOrder.orderType === "walk-in" || receiptOrder.window?.includes("Walk-in")
+                  ? tr("Walk-in Counter", "ลูกค้าหน้าร้าน")
+                  : tr("Scheduled Pickup", "รับตามรอบ")}
+              </div>
+            </div>
+            <div className="receipt-meta">
+              <div>
                 <strong>{tr("Phone:", "โทร:")}</strong> {receiptOrder.phone}
               </div>
             </div>
@@ -3756,6 +3986,18 @@ export default function Wanchai() {
               <span>{tr("Grand Total", "ยอดสุทธิ")}</span>
               <span className="order-total-price-large">{money(receiptOrder.total)}</span>
             </div>
+            {receiptOrder.tendered && receiptOrder.tendered > 0 ? (
+              <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed #ccc", fontSize: "11px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", margin: "2px 0" }}>
+                  <span>{tr("Cash Tendered", "เงินสดที่รับ:")}</span>
+                  <strong>{money(receiptOrder.tendered)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", margin: "2px 0", color: "#047857" }}>
+                  <span>{tr("Change Given", "เงินทอน:")}</span>
+                  <strong>{money(receiptOrder.change || 0)}</strong>
+                </div>
+              </div>
+            ) : null}
             <div className="receipt-footer-note">
               <p>{tr("Payment due at pickup (Cash / PromptPay QR)", "ชำระเงินเมื่อรับสินค้า (เงินสด / สแกนคิวอาร์โค้ด)")}</p>
               <p>{tr("Thank you for choosing Wanchai!", "ขอบพระคุณที่อุดหนุนบ้านวันชัยค่ะ")}</p>
