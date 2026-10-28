@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   Area,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,7 +13,7 @@ import {
 } from "recharts";
 import { Order } from "../lib/store";
 import { useLanguage } from "../context/LanguageContext";
-import { TrendingUp, ShoppingBag, Store, Banknote } from "lucide-react";
+import { TrendingUp, ShoppingBag, Store, Banknote, Calendar } from "lucide-react";
 
 interface AdminRevenueChartProps {
   orders: Order[];
@@ -20,7 +21,7 @@ interface AdminRevenueChartProps {
 
 export function AdminRevenueChart({ orders }: AdminRevenueChartProps) {
   const { tr } = useLanguage();
-  const [chartMode, setChartMode] = useState<"both" | "revenue" | "volume">("both");
+  const [chartMode, setChartMode] = useState<"both" | "line" | "revenue" | "volume">("line");
 
   // Aggregate orders by date
   const { chartData, metrics } = useMemo(() => {
@@ -135,10 +136,18 @@ export function AdminRevenueChart({ orders }: AdminRevenueChartProps) {
         <div className="chart-mode-toggles">
           <button
             type="button"
+            className={`chart-pill ${chartMode === "line" ? "active" : ""}`}
+            onClick={() => setChartMode("line")}
+          >
+            <Calendar size={13} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+            {tr("Revenue Trends Line", "กราฟเส้นแนวโน้มรายได้")}
+          </button>
+          <button
+            type="button"
             className={`chart-pill ${chartMode === "both" ? "active" : ""}`}
             onClick={() => setChartMode("both")}
           >
-            {tr("All In One", "ทั้งหมด")}
+            {tr("Combined Area & Bar", "กราฟรวม")}
           </button>
           <button
             type="button"
@@ -270,6 +279,18 @@ export function AdminRevenueChart({ orders }: AdminRevenueChartProps) {
               iconType="circle"
               wrapperStyle={{ paddingBottom: 12, fontSize: 11 }}
             />
+            {chartMode === "line" && (
+              <Line
+                yAxisId="revenueAxis"
+                type="monotone"
+                dataKey="revenue"
+                name={tr("Weekly Revenue Trend (฿)", "แนวโน้มรายได้ประจำสัปดาห์ (฿)")}
+                stroke="#1b4d3e"
+                strokeWidth={3.5}
+                dot={{ r: 5, fill: "#1b4d3e", stroke: "#ffffff", strokeWidth: 2 }}
+                activeDot={{ r: 8, fill: "#b38c49", stroke: "#ffffff", strokeWidth: 2 }}
+              />
+            )}
             {(chartMode === "both" || chartMode === "revenue") && (
               <Area
                 yAxisId="revenueAxis"

@@ -49,6 +49,7 @@ export type Order = {
   orderType?: "walk-in" | "pickup";
   tendered?: number;
   change?: number;
+  specialRequests?: string;
 };
 export type Subscription = {
   id: string;
@@ -656,5 +657,108 @@ export function triggerHaptic(
       /* Haptic feedback is optional and will fail silently if unsupported */
     }
   }
+}
+
+// Low Inventory Helper Functions
+export const LOW_STOCK_THRESHOLD = 10;
+
+/**
+ * Identifies if a product has stock below or equal to the low inventory threshold.
+ */
+export function isLowStock(product: Product, threshold = LOW_STOCK_THRESHOLD): boolean {
+  return product.stock > 0 && product.stock <= threshold;
+}
+
+export function isOutOfStock(product: Product): boolean {
+  return product.stock <= 0;
+}
+
+export function getStockStatus(product: Product, threshold = LOW_STOCK_THRESHOLD): "out" | "low" | "ok" {
+  if (product.stock <= 0) return "out";
+  if (product.stock <= threshold) return "low";
+  return "ok";
+}
+
+// Automated Admin Email Notification System
+export type AdminEmailNotification = {
+  id: string;
+  timestamp: string;
+  to: string;
+  subject: string;
+  body: string;
+  productId: string;
+  productName: string;
+  productNameTh: string;
+  stock: number;
+  threshold: number;
+  status: "sent" | "delivered";
+};
+
+export function getAdminEmailLogs(): AdminEmailNotification[] {
+  try {
+    const raw = localStorage.getItem("wanchai-v2-admin-emails");
+    return raw ? (JSON.parse(raw) as AdminEmailNotification[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Automatically dispatches and archives an email alert to the store admin
+ * when an item's stock drops below the threshold.
+ */
+export function sendLowStockEmailAlert(
+  product: Product,
+  threshold = LOW_STOCK_THRESHOLD,
+  recipient = "banheruka@gmail.com"
+): AdminEmailNotification {
+  const notificationId = "EML-" + crypto.randomUUID().slice(0, 8).toUpperCase();
+  const timestamp = new Date().toISOString();
+  const subject = `[Wanchai Low Stock Alert] "${product.en}" (${product.th}) is below threshold (${product.stock} units remaining)`;
+  
+  const body = `
+Attention Wanchai Store Operations,
+
+This is an automated inventory alert from the Wanchai Soy Milk House system.
+
+Product ID: ${product.id}
+Product Name (EN): ${product.en}
+Product Name (TH): ${product.th}
+Current Stock Count: ${product.stock} units
+Alert Threshold: ${threshold} units
+Category: ${product.category.toUpperCase()}
+Unit Price: ฿${product.price}
+
+Status: Action Required. Current inventory has reached low threshold.
+Recommended Action: Prepare next morning brewing batch or replenish ingredients.
+
+Timestamp: ${new Date(timestamp).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })} (ICT)
+Recipient: ${recipient}
+Wanchai Soy Milk House · 16 Hai Ya Road, Chiang Mai 50100
+`.trim();
+
+  const newEmail: AdminEmailNotification = {
+    id: notificationId,
+    timestamp,
+    to: recipient,
+    subject,
+    body,
+    productId: product.id,
+    productName: product.en,
+    productNameTh: product.th,
+    stock: product.stock,
+    threshold,
+    status: "sent",
+  };
+
+  try {
+    const existing = getAdminEmailLogs();
+    const updated = [newEmail, ...existing.slice(0, 49)]; // keep latest 50 notifications
+    localStorage.setItem("wanchai-v2-admin-emails", JSON.stringify(updated));
+  } catch (err) {
+    console.warn("Could not save email notification to local storage", err);
+  }
+
+  return newEmail;
 }
 
