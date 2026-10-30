@@ -597,6 +597,7 @@ export const defaultConfig = {
   announcementTh: "ต้มสดใหม่ทุกวัน · รับสินค้า 06:30 – 15:00 · ถั่วเหลืองอินทรีย์เชียงใหม่บดโม่หิน",
 };
 export const windows = [
+  "Anytime (Ready in 15–30 mins)",
   "06:30 – 08:00",
   "08:00 – 10:00",
   "10:00 – 12:00",
@@ -605,7 +606,7 @@ export const windows = [
 export function dates() {
   const now = new Date();
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now.getTime() + (i + 1) * 86400000);
+    const d = new Date(now.getTime() + i * 86400000);
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Bangkok",
       year: "numeric",
@@ -760,5 +761,64 @@ Wanchai Soy Milk House · 16 Hai Ya Road, Chiang Mai 50100
   }
 
   return newEmail;
+}
+
+export function exportOrdersToCSV(orders: Order[]): void {
+  const headers = [
+    "Order ID",
+    "Created At",
+    "Pickup Date",
+    "Time Window",
+    "Order Type",
+    "Customer Name",
+    "Customer Phone",
+    "Item Breakdown",
+    "Total (THB)",
+    "Status",
+    "Cash Tendered",
+    "Change",
+    "Special Requests / Allergies",
+  ];
+
+  const escapeCSV = (str: string) => {
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = orders.map((o) => {
+    const itemsSummary = o.items
+      .map((i) => `${i.qty}x ${i.name} (${i.nameTh}) @฿${i.price}`)
+      .join(" | ");
+
+    return [
+      escapeCSV(o.id),
+      escapeCSV(o.created || ""),
+      escapeCSV(o.date),
+      escapeCSV(o.window),
+      escapeCSV(o.orderType || "pickup"),
+      escapeCSV(o.name),
+      escapeCSV(o.phone),
+      escapeCSV(itemsSummary),
+      o.total,
+      escapeCSV(o.status),
+      o.tendered ?? "",
+      o.change ?? "",
+      escapeCSV(o.specialRequests || "-"),
+    ].join(",");
+  });
+
+  const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const today = new Date().toISOString().split("T")[0];
+  link.setAttribute("href", url);
+  link.setAttribute("download", `wanchai_orders_${today}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 

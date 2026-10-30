@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useMemo, type FormEvent } from "react";
 import {
   ArrowDownUp,
   ArrowLeft,
@@ -48,6 +48,13 @@ import {
   PlusCircle,
   Coins,
   Sparkles,
+  FileSpreadsheet,
+  UploadCloud,
+  AlertTriangle,
+  Send,
+  Mail,
+  Upload,
+  Camera,
 } from "lucide-react";
 import {
   useSaved,
@@ -58,10 +65,16 @@ import {
   windows,
   chime,
   triggerHaptic,
+  exportOrdersToCSV,
+  isLowStock,
+  LOW_STOCK_THRESHOLD,
+  sendLowStockEmailAlert,
+  getAdminEmailLogs,
   type Product,
   type CartItem,
   type Order,
   type Subscription,
+  type AdminEmailNotification,
 } from "./lib/store";
 import Modal from "./components/Modal";
 import { RichTextEditor } from "./components/RichTextEditor";
@@ -70,6 +83,14 @@ import { useToast, RealtimeOrderStatusNotifier } from "./context/ToastContext";
 import AccessibilityMenu from "./components/AccessibilityMenu";
 import BackToTop from "./components/BackToTop";
 import AdminRevenueChart from "./components/AdminRevenueChart";
+import { CartDrawer } from "./components/CartDrawer";
+import QRCodeDisplay from "./components/QRCodeDisplay";
+import InventoryImportModal from "./components/InventoryImportModal";
+import AdminDrawer from "./components/AdminDrawer";
+import CustomerSpendingChart from "./components/CustomerSpendingChart";
+import ReorderConfirmModal from "./components/ReorderConfirmModal";
+import OrderTrackingProgress from "./components/OrderTrackingProgress";
+import OrderConfirmationModal from "./components/OrderConfirmationModal";
 
 type View =
   | "menu"
@@ -155,6 +176,15 @@ export default function Wanchai() {
   const [auditing, setAuditing] = useState(false);
   const [outline, setOutline] = useState(false);
   const [orderFilter, setOrderFilter] = useState("all");
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [isAdminDrawerOpen, setIsAdminDrawerOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [bulkStockVal, setBulkStockVal] = useState<string>("");
+  const [emailLogs, setEmailLogs] = useState<AdminEmailNotification[]>(getAdminEmailLogs());
+  const [reorderTargetOrder, setReorderTargetOrder] = useState<Order | null>(null);
+  const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
 
   const moveProduct = (id: string, direction: "up" | "down") => {
     setProducts((prev) => {
@@ -318,7 +348,7 @@ export default function Wanchai() {
     setView(next);
     setMobileNav(false);
     setError("");
-    window.scrollTo({ top: 0, behavior: motion ? "instant" : "smooth" });
+    window.scrollTo(0, 0);
   };
 
   const add = (id: string, qty = 1) => {
@@ -448,15 +478,28 @@ export default function Wanchai() {
       created: new Date().toISOString(),
       plan: isWalkIn ? false : plan,
       orderType,
+      specialRequests: specialRequests.trim() || undefined,
     };
     triggerHaptic("success");
     setOrders((old) => [order, ...old]);
-    setProducts((old) =>
-      old.map((p) => ({
+
+    const updatedProds = products.map((p) => {
+      const deduction = cart.find((i) => i.id === p.id)?.qty || 0;
+      return {
         ...p,
-        stock: p.stock - (cart.find((i) => i.id === p.id)?.qty || 0),
-      })),
-    );
+        stock: Math.max(0, p.stock - deduction),
+      };
+    });
+    setProducts(updatedProds);
+
+    // Automated Low Stock Email Alert Dispatch
+    updatedProds.forEach((p) => {
+      if (isLowStock(p, LOW_STOCK_THRESHOLD)) {
+        sendLowStockEmailAlert(p, LOW_STOCK_THRESHOLD, "banheruka@gmail.com");
+      }
+    });
+    setEmailLogs(getAdminEmailLogs());
+
     if (
       plan &&
       !subscriptions.some(
@@ -477,9 +520,10 @@ export default function Wanchai() {
       ]);
     setCart([]);
     setPlan(false);
+    setSpecialRequests("");
     setModal(null);
     chime(config.audio, true);
-    go("history");
+    setConfirmedOrder(order);
     notifySuccess(
       tr("Order placed successfully!", "สั่งซื้อสำเร็จเรียบร้อยแล้ว!"),
       tr(
@@ -487,8 +531,8 @@ export default function Wanchai() {
         `บันทึกออเดอร์ #${id} เรียบร้อยแล้ว ยอดรวม ${money(total)} รับวันที่ ${formatDate(pickupDate)} (${slot})`,
       ),
       {
-        label: tr("View order details", "ดูรายละเอียดออเดอร์"),
-        onClick: () => go("history"),
+        label: tr("View tracking & confirmation", "ดูการติดตามและใบเสร็จ"),
+        onClick: () => setConfirmedOrder(order),
       },
     );
   };
@@ -520,17 +564,29 @@ export default function Wanchai() {
       orderType,
       tendered: tenderedVal,
       change: changeVal,
+      specialRequests: specialRequests.trim() || undefined,
     };
 
-    setProducts((old) =>
-      old.map((p) => ({
+    const updatedProds = products.map((p) => {
+      const deduction = cart.find((i) => i.id === p.id)?.qty || 0;
+      return {
         ...p,
-        stock: p.stock - (cart.find((i) => i.id === p.id)?.qty || 0),
-      }))
-    );
+        stock: Math.max(0, p.stock - deduction),
+      };
+    });
+    setProducts(updatedProds);
+
+    // Automated Low Stock Email Alert Dispatch
+    updatedProds.forEach((p) => {
+      if (isLowStock(p, LOW_STOCK_THRESHOLD)) {
+        sendLowStockEmailAlert(p, LOW_STOCK_THRESHOLD, "banheruka@gmail.com");
+      }
+    });
+    setEmailLogs(getAdminEmailLogs());
 
     setOrders((old) => [newOrder, ...old]);
     setCart([]);
+    setSpecialRequests("");
     setDial("");
     setCashTendered("");
     triggerHaptic("success");
@@ -697,6 +753,14 @@ export default function Wanchai() {
       )}
     </>
   );
+  const { todayStr, tomorrowStr } = useMemo(() => {
+    const now = new Date();
+    const tStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(now);
+    const tmrw = new Date(now.getTime() + 86400000);
+    const tmrwStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(tmrw);
+    return { todayStr: tStr, tomorrowStr: tmrwStr };
+  }, []);
+
   const pickupFields = (
     <div className="pickup-fields">
       <label>
@@ -704,9 +768,13 @@ export default function Wanchai() {
         {tr("Pickup day", "วันรับสินค้า")}
         <div className="select-wrap">
           <select value={pickupDate} onChange={(e) => setDate(e.target.value)}>
-            {availableDates.map((d, i) => (
+            {availableDates.map((d) => (
               <option key={d} value={d}>
-                {i === 0 ? tr("Tomorrow", "พรุ่งนี้") + ", " : ""}
+                {d === todayStr
+                  ? tr("Today (Same-day)", "วันนี้ (รับได้เลย)") + ", "
+                  : d === tomorrowStr
+                    ? tr("Tomorrow", "พรุ่งนี้") + ", "
+                    : ""}
                 {formatDate(d)}
               </option>
             ))}
@@ -721,7 +789,9 @@ export default function Wanchai() {
           <select value={slot} onChange={(e) => setSlot(e.target.value)}>
             {windows.map((w) => (
               <option key={w} value={w}>
-                {w}
+                {w === "Anytime (Ready in 15–30 mins)"
+                  ? tr("⚡ Anytime (Ready in 15–30 mins)", "⚡ ตลอดวัน (รอรับ 15–30 นาที)")
+                  : w}
               </option>
             ))}
           </select>
@@ -937,6 +1007,39 @@ export default function Wanchai() {
             <LanguageToggle />
             <button
               className="icon-button"
+              style={{ position: "relative" }}
+              onClick={() => {
+                triggerHaptic("light");
+                setIsCartDrawerOpen(true);
+              }}
+              aria-label={tr("Open cart drawer", "เปิดตะกร้าสินค้า")}
+              title={tr("Your Little Bag", "ตะกร้าสินค้า")}
+            >
+              <ShoppingBag size={18} />
+              {totalCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-4px",
+                    right: "-4px",
+                    background: "var(--green)",
+                    color: "#fff",
+                    fontSize: "10px",
+                    fontWeight: "bold",
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {totalCount}
+                </span>
+              )}
+            </button>
+            <button
+              className="icon-button"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
               aria-label={tr(
                 "Toggle light or dark theme",
@@ -955,8 +1058,12 @@ export default function Wanchai() {
             </button>
             <button
               className="avatar"
-              aria-label={tr("Open house settings", "เปิดการตั้งค่าร้าน")}
-              onClick={() => go("admin")}
+              aria-label={tr("Open staff operations drawer", "เปิดเมนูพนักงานและการตั้งค่า")}
+              title={tr("Staff & Operations Drawer", "เมนูจัดการร้าน")}
+              onClick={() => {
+                triggerHaptic("light");
+                setIsAdminDrawerOpen(true);
+              }}
             >
               W
             </button>
@@ -974,6 +1081,52 @@ export default function Wanchai() {
         <main id="main-content" tabIndex={-1}>
           {view === "menu" && (
             <>
+              {/* Walk-in & Passersby Banner */}
+              <div className="walkin-passersby-banner" style={{ margin: "0 0 20px" }}>
+                <div className="walkin-content">
+                  <span className="walkin-badge">
+                    <Store size={14} /> {tr("Walk-in & Passersby Welcome", "ยินดีต้อนรับลูกค้าหน้าร้านและผู้สัญจร")}
+                  </span>
+                  <h4>{tr("Need fresh soy milk right now?", "แวะรับน้ำเต้าหู้สดทันที?")}</h4>
+                  <p>
+                    {tr(
+                      "Instant 1–2 minute counter grab & go on Hai Ya Road, Chiang Mai. No advance scheduling required for daily walk-ins.",
+                      "แวะซื้อหน้าร้านได้ทันทีที่ถนนหายยา เชียงใหม่ รอเพียง 1–2 นาที ไม่ต้องจองรอบเวลาล่วงหน้าสำหรับลูกค้าหน้าร้าน",
+                    )}
+                  </p>
+                </div>
+                <div className="walkin-actions">
+                  <button
+                    type="button"
+                    className={`walkin-toggle-btn ${orderType === "walk-in" ? "active" : ""}`}
+                    onClick={() => {
+                      triggerHaptic("light");
+                      setOrderType("walk-in");
+                      notify(
+                        tr("Walk-in Mode: Instant counter pickup selected.", "โหมดหน้าร้าน: เลือกรับด่วนที่เคาน์เตอร์แล้ว"),
+                        "info",
+                      );
+                    }}
+                  >
+                    🚶 {tr("Walk-in Counter (Immediate)", "ซื้อทันทีหน้าร้าน")}
+                  </button>
+                  <button
+                    type="button"
+                    className={`walkin-toggle-btn ${orderType === "pickup" ? "active" : ""}`}
+                    onClick={() => {
+                      triggerHaptic("light");
+                      setOrderType("pickup");
+                      notify(
+                        tr("Pre-order Mode: Scheduled pickup window selected.", "โหมดจองล่วงหน้า: เลือกรอบเวลารับแล้ว"),
+                        "info",
+                      );
+                    }}
+                  >
+                    🛵 {tr("Pre-order Pickup (Scheduled)", "สั่งจองล่วงหน้า")}
+                  </button>
+                </div>
+              </div>
+
               <section className="hero">
                 <div className="hero-copy">
                   <div className="hero-eyebrow">
@@ -1220,8 +1373,12 @@ export default function Wanchai() {
                     </div>
                   )}
                   <div className="product-grid">
-                    {filtered.map((p) => (
-                      <article className="product-card" key={p.id}>
+                    {filtered.map((p, index) => (
+                      <article
+                        className="product-card"
+                        key={`${category}-${p.id}`}
+                        style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
+                      >
                         <button
                           className="product-image"
                           onClick={() => setDetail(p)}
@@ -1470,39 +1627,11 @@ export default function Wanchai() {
                         {statusLabel(o.status)}
                       </span>
                     </div>
-                    <div className="order-progress">
-                      {(
-                        ["received", "preparing", "ready", "collected"] as const
-                      ).map((s, i) => (
-                        <div
-                          key={s}
-                          className={
-                            [
-                              "received",
-                              "preparing",
-                              "ready",
-                              "collected",
-                            ].indexOf(o.status) >= i
-                              ? "complete"
-                              : ""
-                          }
-                        >
-                          <span>
-                            {[
-                              "received",
-                              "preparing",
-                              "ready",
-                              "collected",
-                            ].indexOf(o.status) >= i ? (
-                              <Check size={12} />
-                            ) : (
-                              i + 1
-                            )}
-                          </span>
-                          <small>{statusLabel(s)}</small>
-                        </div>
-                      ))}
-                    </div>
+                    <OrderTrackingProgress
+                      order={o}
+                      onStatusChange={(newStatus) => updateStatus(o.id, newStatus)}
+                      interactive={true}
+                    />
                     <div className="order-lines">
                       {o.items.map((i, n) => (
                         <div key={n}>
@@ -1521,11 +1650,39 @@ export default function Wanchai() {
                         </div>
                       )}
                     </div>
-                    <div className="order-card-footer">
-                      <span>
-                        {o.name} · {tr("Pay at pickup", "ชำระเมื่อรับสินค้า")}
-                      </span>
-                      <strong>{money(o.total)}</strong>
+                    <div className="order-card-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "var(--muted)" }}>
+                          {o.name} · {tr("Pay at pickup", "ชำระเมื่อรับสินค้า")}
+                        </span>
+                        <strong style={{ fontSize: "15px" }}>{money(o.total)}</strong>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="secondary"
+                          style={{ padding: "6px 12px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                          onClick={() => {
+                            setReceiptOrder(o);
+                            setModal("receipt");
+                          }}
+                        >
+                          <Receipt size={13} />
+                          {tr("Receipt & QR", "ใบเสร็จ & QR")}
+                        </button>
+                        <button
+                          type="button"
+                          className="primary"
+                          style={{ padding: "6px 12px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                          onClick={() => {
+                            triggerHaptic("light");
+                            setReorderTargetOrder(o);
+                          }}
+                        >
+                          <RotateCcw size={13} />
+                          {tr("Reorder", "สั่งซ้ำ")}
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -1610,6 +1767,83 @@ export default function Wanchai() {
                   <span className="stat-hint">
                     {tr("Brewing or ready", "กำลังเตรียมหรือพร้อมรับ")}
                   </span>
+                </div>
+              </div>
+
+              {/* Customer Monthly Spending Trends Bar Chart */}
+              <CustomerSpendingChart orders={orders} />
+
+              {/* Recent Orders Section with Quick Reorder */}
+              {orders.length > 0 && (
+                <div style={{ marginBottom: "22px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Sparkles size={16} className="text-amber-500" />
+                        {tr("Recent Orders & Quick Reorder", "ออเดอร์ล่าสุด & สั่งซ้ำทันใจ")}
+                      </h3>
+                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--muted)" }}>
+                        {tr("Reorder your breakfast favorites with itemized confirmation in one tap.", "สั่งซ้ำเมนูโปรดของคุณพร้อมหน้าต่างยืนยันรายการในคลิกเดียว")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="recent-orders-shelf">
+                    {orders.slice(0, 6).map((ro) => (
+                      <div key={ro.id} className="recent-order-pill-card">
+                        <div>
+                          <div className="recent-order-pill-header">
+                            <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--green)" }}>
+                              #{ro.id}
+                            </span>
+                            <span className={`status-badge ${ro.status}`} style={{ fontSize: "9px", padding: "2px 6px" }}>
+                              {statusLabel(ro.status)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                            {formatDate(ro.date)} · {ro.window}
+                          </div>
+                          <div className="recent-order-items-preview">
+                            {ro.items.map((it) => `${it.qty}× ${tr(it.name, it.nameTh)}`).join(", ")}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--line)" }}>
+                          <strong style={{ fontSize: "14px", color: "var(--text)" }}>
+                            {money(ro.total)}
+                          </strong>
+                          <button
+                            type="button"
+                            className="primary"
+                            style={{ padding: "5px 12px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                            onClick={() => {
+                              triggerHaptic("light");
+                              setReorderTargetOrder(ro);
+                            }}
+                          >
+                            <RotateCcw size={12} />
+                            {tr("Reorder", "สั่งซ้ำ")}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dedicated My Orders Section */}
+              <div className="my-orders-section-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "19px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", color: "var(--foreground)" }}>
+                    <ShoppingBag size={20} className="text-emerald-600" />
+                    {tr("My Orders", "ออเดอร์ของฉัน")}
+                  </h3>
+                  <p style={{ margin: "3px 0 0", fontSize: "12px", color: "var(--muted)" }}>
+                    {tr(
+                      "All past orders, current preparation statuses, items breakdown, and one-tap reordering.",
+                      "ประวัติคำสั่งซื้อทั้งหมด ติดตามสถานะการทำสดแบบเรียลไทม์ พร้อมปุ่มสั่งซ้ำทันใจ",
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -1784,40 +2018,12 @@ export default function Wanchai() {
                       </div>
                     </div>
 
-                    {/* Progress indicator */}
-                    <div className="order-progress">
-                      {(
-                        ["received", "preparing", "ready", "collected"] as const
-                      ).map((s, i) => (
-                        <div
-                          key={s}
-                          className={
-                            [
-                              "received",
-                              "preparing",
-                              "ready",
-                              "collected",
-                            ].indexOf(o.status) >= i
-                              ? "complete"
-                              : ""
-                          }
-                        >
-                          <span>
-                            {[
-                              "received",
-                              "preparing",
-                              "ready",
-                              "collected",
-                            ].indexOf(o.status) >= i ? (
-                              <Check size={12} />
-                            ) : (
-                              i + 1
-                            )}
-                          </span>
-                          <small>{statusLabel(s)}</small>
-                        </div>
-                      ))}
-                    </div>
+                    {/* Real-time Order Tracking Stepper */}
+                    <OrderTrackingProgress
+                      order={o}
+                      onStatusChange={(newStatus) => updateStatus(o.id, newStatus)}
+                      interactive={true}
+                    />
 
                     {/* Items List (Explicit requirement: "showing status, items, and total price") */}
                     <div className="previous-order-items-wrapper">
@@ -1915,7 +2121,8 @@ export default function Wanchai() {
                           className="primary"
                           onClick={(e) => {
                             e.stopPropagation();
-                            reorder(o);
+                            triggerHaptic("light");
+                            setReorderTargetOrder(o);
                           }}
                         >
                           <RotateCcw size={14} />
@@ -2651,6 +2858,11 @@ export default function Wanchai() {
                           </div>
                         ))}
                       </div>
+                      {o.specialRequests && (
+                        <div style={{ margin: "6px 0", padding: "6px 8px", background: "#fef3c7", borderRadius: "6px", fontSize: "11px", color: "#92400e", border: "1px dashed #f59e0b" }}>
+                          <strong>⚠️ {tr("Notes / Allergies:", "หมายเหตุ / แพ้อาหาร:")}</strong> {o.specialRequests}
+                        </div>
+                      )}
                       <p>
                         <MapPin size={14} />
                         {tr(
@@ -2725,6 +2937,7 @@ export default function Wanchai() {
                 {[
                   ["analytics", tr("Revenue & Analytics", "รายได้และแนวโน้ม")],
                   ["inventory", tr("Products & stock", "สินค้าและสต็อก")],
+                  ["alerts", tr("Automated Alerts Log", "บันทึกแจ้งเตือนอัตโนมัติ")],
                   ["settings", tr("House settings", "ตั้งค่าร้าน")],
                   ["content", tr("Hero wall & story", "ผนังฮีโร่และเรื่องราว")],
                   ["accessibility", tr("Accessibility", "การเข้าถึง")],
@@ -2741,6 +2954,109 @@ export default function Wanchai() {
               {adminTab === "analytics" && (
                 <section style={{ marginBottom: "20px" }}>
                   <AdminRevenueChart orders={orders} />
+                </section>
+              )}
+              {adminTab === "alerts" && (
+                <section className="panel settings-panel" style={{ marginBottom: "20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
+                    <div>
+                      <h3 style={{ display: "flex", alignItems: "center", gap: "8px", margin: "0 0 4px" }}>
+                        <Mail size={18} className="text-emerald-700" />
+                        {tr("Automated Admin Email Alerts Log", "บันทึกการส่งอีเมลแจ้งเตือนสต็อกอัตโนมัติ")}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: "12px", color: "var(--muted)" }}>
+                        {tr(
+                          "Automated stock alerts dispatched to store manager at banheruka@gmail.com whenever inventory drops to ≤ 10 units.",
+                          "ระบบส่งแจ้งเตือนอัตโนมัติไปยัง banheruka@gmail.com เมื่อสต็อกสินค้าลดลงเหลือ ≤ 10 ชิ้น"
+                        )}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          const testProd = products[0] || initialProducts[0];
+                          const alert = sendLowStockEmailAlert(testProd, LOW_STOCK_THRESHOLD, "banheruka@gmail.com");
+                          setEmailLogs(getAdminEmailLogs());
+                          triggerHaptic("success");
+                          notifySuccess(
+                            tr("Test alert sent!", "ส่งการแจ้งเตือนทดสอบแล้ว!"),
+                            tr(`Simulated alert #${alert.id} dispatched to banheruka@gmail.com.`, `ส่งการแจ้งเตือน #${alert.id} ไปยัง banheruka@gmail.com สำเร็จ`)
+                          );
+                        }}
+                      >
+                        <Send size={14} />
+                        {tr("Send Test Email Alert", "ส่งแจ้งเตือนทดสอบ")}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        style={{ color: "#dc2626" }}
+                        onClick={() => {
+                          localStorage.removeItem("wanchai-v2-admin-emails");
+                          setEmailLogs([]);
+                          notify(tr("Alert log cleared.", "ล้างประวัติแจ้งเตือนแล้ว"));
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        {tr("Clear Log", "ล้างบันทึก")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {emailLogs.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px", background: "var(--surface-warm)", borderRadius: "8px" }}>
+                      <Mail size={32} style={{ color: "var(--muted)", margin: "0 auto 8px" }} />
+                      <p style={{ margin: 0, color: "var(--muted)", fontSize: "13px" }}>
+                        {tr("No low stock email notifications triggered yet.", "ยังไม่มีประวัติการส่งอีเมลแจ้งเตือนสต็อกต่ำ")}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{tr("Timestamp", "เวลา")}</th>
+                            <th>{tr("Recipient", "ผู้รับ")}</th>
+                            <th>{tr("Subject", "หัวข้อ")}</th>
+                            <th>{tr("Product", "สินค้า")}</th>
+                            <th>{tr("Stock Left", "คงเหลือ")}</th>
+                            <th>{tr("Status", "สถานะ")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {emailLogs.map((log) => (
+                            <tr key={log.id}>
+                              <td style={{ fontSize: "11px", whiteSpace: "nowrap" }}>
+                                {new Date(log.timestamp).toLocaleString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </td>
+                              <td style={{ fontSize: "11px", fontWeight: 600 }}>{log.to}</td>
+                              <td style={{ fontSize: "11px" }}>{log.subject}</td>
+                              <td style={{ fontSize: "11px" }}>
+                                <strong>{lang === "en" ? log.productName : log.productNameTh}</strong>
+                              </td>
+                              <td>
+                                <span className="inventory-badge-low">
+                                  {log.stock} / {log.threshold}
+                                </span>
+                              </td>
+                              <td>
+                                <span style={{ color: "#059669", fontWeight: 700, fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                  ✓ {tr("Dispatched", "ส่งแล้ว")}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </section>
               )}
               {adminTab === "settings" && (
@@ -2893,31 +3209,59 @@ export default function Wanchai() {
                       </h3>
                       <p style={{ margin: 0 }}>
                         {tr(
-                          "Organize products per category, edit with rich text, arrange display order, add new items, or adjust stock.",
-                          "จัดการสินค้าตามหมวดหมู่ แก้ไขข้อความด้วยโปรแกรมจัดรูปแบบ ปรับลำดับ เพิ่มเมนูใหม่ หรือปรับสต็อก",
+                          "Organize products per category, edit with rich text, arrange display order, bulk update stock, or import from CSV.",
+                          "จัดการสินค้าตามหมวดหมู่ แก้ไขข้อความด้วยโปรแกรมจัดรูปแบบ ปรับลำดับ ปรับสต็อกพร้อมกัน หรือนำเข้าจากไฟล์ CSV",
                         )}
                       </p>
                     </div>
-                    <button
-                      className="primary"
-                      type="button"
-                      onClick={() => {
-                        setNewProduct({
-                          category: "milk",
-                          en: "",
-                          th: "",
-                          desc: "",
-                          descTh: "",
-                          price: 15,
-                          stock: 50,
-                          image: "/images/hot_soy_milk_bowl_1792747451795.jpg",
-                        });
-                        setIsAddingProduct(true);
-                      }}
-                    >
-                      <PlusCircle size={16} />
-                      {tr("Add new product", "เพิ่มสินค้าใหม่")}
-                    </button>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic("light");
+                          setIsImportModalOpen(true);
+                        }}
+                      >
+                        <UploadCloud size={15} />
+                        {tr("Import Inventory (CSV)", "นำเข้าสต็อก (CSV)")}
+                      </button>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic("medium");
+                          exportOrdersToCSV(orders);
+                          notifySuccess(
+                            tr("Orders CSV Exported", "ส่งออกไฟล์ CSV แล้ว"),
+                            tr(`Downloaded orders spreadsheet with ${orders.length} records.`, `ดาวน์โหลดประวัติออเดอร์ทั้งหมด ${orders.length} รายการแล้ว`)
+                          );
+                        }}
+                      >
+                        <FileSpreadsheet size={15} />
+                        {tr("Export Orders CSV", "ส่งออกคำสั่งซื้อ CSV")}
+                      </button>
+                      <button
+                        className="primary"
+                        type="button"
+                        onClick={() => {
+                          setNewProduct({
+                            category: "milk",
+                            en: "",
+                            th: "",
+                            desc: "",
+                            descTh: "",
+                            price: 15,
+                            stock: 50,
+                            image: "/images/hot_soy_milk_bowl_1792747451795.jpg",
+                          });
+                          setIsAddingProduct(true);
+                        }}
+                      >
+                        <PlusCircle size={16} />
+                        {tr("Add new product", "เพิ่มสินค้าใหม่")}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Search and Category Filter Bar */}
@@ -2961,10 +3305,131 @@ export default function Wanchai() {
                     </div>
                   </div>
 
+                  {/* Bulk Action Bar */}
+                  {selectedProductIds.length > 0 && (
+                    <div className="bulk-action-bar" style={{ margin: "0 0 12px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: 700 }}>
+                        {selectedProductIds.length} {tr("products selected", "สินค้าที่เลือก")}
+                      </span>
+                      <button
+                        type="button"
+                        className="bulk-btn"
+                        onClick={() => {
+                          setProducts((old) =>
+                            old.map((p) =>
+                              selectedProductIds.includes(p.id)
+                                ? { ...p, stock: p.stock + 10 }
+                                : p
+                            )
+                          );
+                          notify(tr(`Added +10 stock to ${selectedProductIds.length} products.`, `เพิ่มสต็อก +10 ให้สินค้า ${selectedProductIds.length} รายการ`));
+                        }}
+                      >
+                        +10 {tr("Stock", "สต็อก")}
+                      </button>
+                      <button
+                        type="button"
+                        className="bulk-btn"
+                        onClick={() => {
+                          setProducts((old) =>
+                            old.map((p) =>
+                              selectedProductIds.includes(p.id)
+                                ? { ...p, stock: p.stock + 25 }
+                                : p
+                            )
+                          );
+                          notify(tr(`Added +25 stock to ${selectedProductIds.length} products.`, `เพิ่มสต็อก +25 ให้สินค้า ${selectedProductIds.length} รายการ`));
+                        }}
+                      >
+                        +25 {tr("Stock", "สต็อก")}
+                      </button>
+                      <button
+                        type="button"
+                        className="bulk-btn"
+                        style={{ color: "#fca5a5" }}
+                        onClick={() => {
+                          setProducts((old) =>
+                            old.map((p) =>
+                              selectedProductIds.includes(p.id)
+                                ? { ...p, stock: 0 }
+                                : p
+                            )
+                          );
+                          notify(tr(`Marked ${selectedProductIds.length} products as Out of Stock.`, `ตั้งสินค้า ${selectedProductIds.length} รายการเป็นสินค้าหมด`));
+                        }}
+                      >
+                        {tr("Set 0 (Out of Stock)", "ตั้งเป็น 0 (สินค้าหมด)")}
+                      </button>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        <input
+                          type="number"
+                          className="bulk-input"
+                          placeholder="Qty"
+                          min="0"
+                          max="999"
+                          value={bulkStockVal}
+                          onChange={(e) => setBulkStockVal(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="bulk-btn primary-bulk"
+                          onClick={() => {
+                            const val = parseInt(bulkStockVal, 10);
+                            if (isNaN(val) || val < 0) return;
+                            setProducts((old) =>
+                              old.map((p) =>
+                                selectedProductIds.includes(p.id)
+                                  ? { ...p, stock: val }
+                                  : p
+                              )
+                            );
+                            setBulkStockVal("");
+                            notify(tr(`Updated stock to ${val} for ${selectedProductIds.length} products.`, `ปรับสต็อกเป็น ${val} ให้สินค้า ${selectedProductIds.length} รายการแล้ว`));
+                          }}
+                        >
+                          {tr("Set Qty", "ตั้งยอด")}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="bulk-btn"
+                        onClick={() => setSelectedProductIds([])}
+                      >
+                        {tr("Deselect All", "ยกเลิกเลือก")}
+                      </button>
+                    </div>
+                  )}
+
                   <div className="table-scroll">
                     <table>
                       <thead>
                         <tr>
+                          <th style={{ width: "36px", textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              aria-label={tr("Select all visible products", "เลือกสินค้าทั้งหมดที่แสดง")}
+                              checked={
+                                products
+                                  .filter((p) => adminCategory === "all" || p.category === adminCategory)
+                                  .length > 0 &&
+                                products
+                                  .filter((p) => adminCategory === "all" || p.category === adminCategory)
+                                  .every((p) => selectedProductIds.includes(p.id))
+                              }
+                              onChange={(e) => {
+                                const currentFiltered = products.filter(
+                                  (p) => adminCategory === "all" || p.category === adminCategory
+                                );
+                                if (e.target.checked) {
+                                  const ids = Array.from(new Set([...selectedProductIds, ...currentFiltered.map((p) => p.id)]));
+                                  setSelectedProductIds(ids);
+                                } else {
+                                  const currentIds = currentFiltered.map((p) => p.id);
+                                  setSelectedProductIds(selectedProductIds.filter((id) => !currentIds.includes(id)));
+                                }
+                              }}
+                            />
+                          </th>
                           <th style={{ width: "70px" }}>{tr("Arrange", "ลำดับ")}</th>
                           <th>{tr("Product", "สินค้า")}</th>
                           <th>{tr("Category", "หมวดหมู่")}</th>
@@ -2987,6 +3452,20 @@ export default function Wanchai() {
                           })
                           .map((p, filteredIdx, currentList) => (
                             <tr key={p.id}>
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  aria-label={tr(`Select ${p.en}`, `เลือก ${p.th}`)}
+                                  checked={selectedProductIds.includes(p.id)}
+                                  onChange={() => {
+                                    setSelectedProductIds((prev) =>
+                                      prev.includes(p.id)
+                                        ? prev.filter((id) => id !== p.id)
+                                        : [...prev, p.id]
+                                    );
+                                  }}
+                                />
+                              </td>
                               <td>
                                 <div className="reorder-controls">
                                   <button
@@ -3097,13 +3576,14 @@ export default function Wanchai() {
                                     <span className="inventory-badge-out">
                                       ✕ {tr("Out of Stock", "สินค้าหมด")}
                                     </span>
-                                  ) : p.stock <= 10 ? (
+                                  ) : isLowStock(p, LOW_STOCK_THRESHOLD) ? (
                                     <span className="inventory-badge-low">
-                                      ⚠ {tr(`Low Stock (${p.stock})`, `เหลือน้อย (${p.stock})`)}
+                                      <AlertTriangle size={12} />
+                                      {tr(`Low Stock (${p.stock})`, `เหลือน้อย (${p.stock})`)}
                                     </span>
                                   ) : (
                                     <span className="inventory-badge-ok">
-                                      ✓ {tr("Adequate", "สต็อกพร้อม")}
+                                      ✓ {tr("Adequate", "สต็อกพร้อม")} ({p.stock})
                                     </span>
                                   )}
                                 </div>
@@ -3956,6 +4436,13 @@ export default function Wanchai() {
                 <strong>{tr("Phone:", "โทร:")}</strong> {receiptOrder.phone}
               </div>
             </div>
+
+            {/* Real-time Order Tracking Stepper */}
+            <OrderTrackingProgress
+              order={receiptOrder}
+              onStatusChange={(newStatus) => updateStatus(receiptOrder.id, newStatus)}
+              interactive={true}
+            />
             <table className="receipt-items-table">
               <thead>
                 <tr>
@@ -3998,6 +4485,22 @@ export default function Wanchai() {
                 </div>
               </div>
             ) : null}
+            {receiptOrder.specialRequests && (
+              <div style={{ marginTop: "10px", padding: "8px 12px", background: "#fef3c7", borderRadius: "8px", border: "1px dashed #d97706", fontSize: "12px", textAlign: "left" }}>
+                <strong style={{ color: "#b45309", display: "block", marginBottom: "2px" }}>
+                  ⚠️ {tr("Special Requests / Allergy Notes:", "คำขอพิเศษ / ข้อมูลการแพ้อาหาร:")}
+                </strong>
+                <p style={{ margin: 0, color: "#78350f" }}>{receiptOrder.specialRequests}</p>
+              </div>
+            )}
+            <div style={{ margin: "14px 0" }}>
+              <QRCodeDisplay
+                value={`https://wanchai.house/orders/${receiptOrder.id}`}
+                orderId={receiptOrder.id}
+                pickupWindow={receiptOrder.window}
+                size={140}
+              />
+            </div>
             <div className="receipt-footer-note">
               <p>{tr("Payment due at pickup (Cash / PromptPay QR)", "ชำระเงินเมื่อรับสินค้า (เงินสด / สแกนคิวอาร์โค้ด)")}</p>
               <p>{tr("Thank you for choosing Wanchai!", "ขอบพระคุณที่อุดหนุนบ้านวันชัยค่ะ")}</p>
@@ -4017,9 +4520,11 @@ export default function Wanchai() {
                 type="button"
                 className="primary full"
                 onClick={() => {
-                  reorder(receiptOrder);
+                  const target = receiptOrder;
                   setModal(null);
                   setReceiptOrder(null);
+                  triggerHaptic("light");
+                  setReorderTargetOrder(target);
                 }}
               >
                 <RotateCcw size={14} />
@@ -4154,22 +4659,132 @@ export default function Wanchai() {
             </div>
 
             <div>
-              <label className="field-label">{tr("Image URL / Preset", "รูปภาพสินค้า")}</label>
+              <label className="field-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{tr("Product Image", "รูปภาพสินค้า")} *</span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>{tr("Upload device photo, paste URL, or select preset", "อัปโหลดรูปจากเครื่อง หรือเลือกตัวอย่าง")}</span>
+              </label>
+
+              {/* Upload Drop Zone & Picker */}
+              <div
+                style={{
+                  border: "2px dashed var(--border)",
+                  borderRadius: "12px",
+                  padding: "14px",
+                  textAlign: "center",
+                  background: "var(--card-subtle, rgba(0,0,0,0.02))",
+                  marginBottom: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onClick={() => document.getElementById("add-product-file-input")?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith("image/")) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === "string") {
+                        setNewProduct((prev) => ({ ...prev, image: reader.result as string }));
+                        addToast({ type: "success", message: tr("Image uploaded successfully!", "อัปโหลดรูปภาพเรียบร้อยแล้ว!") });
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              >
+                <input
+                  id="add-product-file-input"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") {
+                          setNewProduct((prev) => ({ ...prev, image: reader.result as string }));
+                          addToast({ type: "success", message: tr("Image uploaded successfully!", "อัปโหลดรูปภาพเรียบร้อยแล้ว!") });
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+
+                {newProduct.image ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", justifyContent: "center" }}>
+                    <img
+                      src={newProduct.image}
+                      alt="Product preview"
+                      style={{
+                        width: "64px",
+                        height: "64px",
+                        objectFit: "cover",
+                        borderRadius: "10px",
+                        border: "2px solid var(--primary, #059669)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                      }}
+                    />
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--foreground)" }}>
+                        {tr("Photo Selected", "เลือกรูปภาพแล้ว")}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                        {tr("Click or drop to replace photo", "คลิกหรือลากวางเพื่อเปลี่ยนรูปใหม่")}
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        style={{ padding: "3px 8px", fontSize: "11px", marginTop: "4px" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNewProduct((prev) => ({ ...prev, image: "" }));
+                        }}
+                      >
+                        <Trash2 size={12} style={{ marginRight: "4px" }} />
+                        {tr("Remove photo", "ลบรูป")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", gap: "8px", color: "var(--primary, #059669)" }}>
+                      <Upload size={22} />
+                      <Camera size={22} />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: "13px" }}>
+                        {tr("Click to upload product image", "คลิกเพื่ออัปโหลดรูปสินค้า")}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "var(--muted)", display: "block" }}>
+                        {tr("Supports PNG, JPG, WebP, Camera capture or Drag & Drop", "รองรับไฟล์ PNG, JPG, WebP ถ่ายรูป หรือลากไฟล์มาวาง")}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Direct URL input alternative */}
               <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                 <input
                   type="text"
-                  placeholder="/images/... or /assets/..."
+                  placeholder={tr("Or enter image URL / path (/images/...)", "หรือใส่ URL / ที่อยู่ไฟล์รูป")}
                   value={newProduct.image || ""}
                   onChange={(e) => setNewProduct((prev) => ({ ...prev, image: e.target.value }))}
                 />
-                {newProduct.image && (
-                  <img
-                    src={newProduct.image}
-                    alt="Preview"
-                    style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  />
-                )}
               </div>
+
+              {/* Preset buttons */}
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
                 <span style={{ color: "var(--muted)", alignSelf: "center" }}>{tr("Presets:", "ตัวอย่าง:")}</span>
                 {[
@@ -4343,21 +4958,132 @@ export default function Wanchai() {
             </div>
 
             <div>
-              <label className="field-label">{tr("Image URL / Preset", "รูปภาพสินค้า")}</label>
+              <label className="field-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{tr("Product Image", "รูปภาพสินค้า")} *</span>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>{tr("Upload device photo, paste URL, or select preset", "อัปโหลดรูปจากเครื่อง หรือเลือกตัวอย่าง")}</span>
+              </label>
+
+              {/* Upload Drop Zone & Picker */}
+              <div
+                style={{
+                  border: "2px dashed var(--border)",
+                  borderRadius: "12px",
+                  padding: "14px",
+                  textAlign: "center",
+                  background: "var(--card-subtle, rgba(0,0,0,0.02))",
+                  marginBottom: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onClick={() => document.getElementById("edit-product-file-input")?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith("image/")) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === "string") {
+                        setEditingProduct((prev) => prev ? ({ ...prev, image: reader.result as string }) : null);
+                        addToast({ type: "success", message: tr("Image updated successfully!", "อัปเดตรูปภาพเรียบร้อยแล้ว!") });
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              >
+                <input
+                  id="edit-product-file-input"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") {
+                          setEditingProduct((prev) => prev ? ({ ...prev, image: reader.result as string }) : null);
+                          addToast({ type: "success", message: tr("Image updated successfully!", "อัปเดตรูปภาพเรียบร้อยแล้ว!") });
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+
+                {editingProduct.image ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", justifyContent: "center" }}>
+                    <img
+                      src={editingProduct.image}
+                      alt="Product preview"
+                      style={{
+                        width: "64px",
+                        height: "64px",
+                        objectFit: "cover",
+                        borderRadius: "10px",
+                        border: "2px solid var(--primary, #059669)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                      }}
+                    />
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--foreground)" }}>
+                        {tr("Photo Selected", "เลือกรูปภาพแล้ว")}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                        {tr("Click or drop to replace photo", "คลิกหรือลากวางเพื่อเปลี่ยนรูปใหม่")}
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        style={{ padding: "3px 8px", fontSize: "11px", marginTop: "4px" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingProduct((prev) => prev ? ({ ...prev, image: "" }) : null);
+                        }}
+                      >
+                        <Trash2 size={12} style={{ marginRight: "4px" }} />
+                        {tr("Remove photo", "ลบรูป")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", gap: "8px", color: "var(--primary, #059669)" }}>
+                      <Upload size={22} />
+                      <Camera size={22} />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: "13px" }}>
+                        {tr("Click to upload product image", "คลิกเพื่ออัปโหลดรูปสินค้า")}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "var(--muted)", display: "block" }}>
+                        {tr("Supports PNG, JPG, WebP, Camera capture or Drag & Drop", "รองรับไฟล์ PNG, JPG, WebP ถ่ายรูป หรือลากไฟล์มาวาง")}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Direct URL input alternative */}
               <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                 <input
                   type="text"
+                  placeholder={tr("Or enter image URL / path (/images/...)", "หรือใส่ URL / ที่อยู่ไฟล์รูป")}
                   value={editingProduct.image}
                   onChange={(e) => setEditingProduct((prev) => prev ? ({ ...prev, image: e.target.value }) : null)}
                 />
-                {editingProduct.image && (
-                  <img
-                    src={editingProduct.image}
-                    alt="Preview"
-                    style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--border)" }}
-                  />
-                )}
               </div>
+
+              {/* Preset buttons */}
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
                 <span style={{ color: "var(--muted)", alignSelf: "center" }}>{tr("Presets:", "ตัวอย่าง:")}</span>
                 {[
@@ -4474,6 +5200,89 @@ export default function Wanchai() {
           </div>
         </Modal>
       )}
+
+      {/* Slide-out Cart Drawer with Special Requests & Allergies */}
+      <CartDrawer
+        isOpen={isCartDrawerOpen}
+        onClose={() => setIsCartDrawerOpen(false)}
+        cart={cart}
+        products={products}
+        orderType={orderType}
+        setOrderType={setOrderType}
+        specialRequests={specialRequests}
+        setSpecialRequests={setSpecialRequests}
+        onAdd={add}
+        onChangeQty={changeQty}
+        onCheckout={() => {
+          setIsCartDrawerOpen(false);
+          openCheckout();
+        }}
+        plan={plan}
+        money={money}
+        pickupFields={pickupFields}
+      />
+
+      {/* Collapsible Staff & Admin Operations Drawer */}
+      <AdminDrawer
+        isOpen={isAdminDrawerOpen}
+        onClose={() => setIsAdminDrawerOpen(false)}
+        currentView={view}
+        onSelectView={(v) => go(v)}
+        adminTab={adminTab}
+        onSelectAdminTab={(tab) => setAdminTab(tab)}
+        onExportCSV={() => exportOrdersToCSV(orders)}
+        lowStockCount={products.filter((p) => isLowStock(p, LOW_STOCK_THRESHOLD)).length}
+        kitchenPendingCount={orders.filter((o) => o.status !== "collected").length}
+      />
+
+      {/* Spreadsheet & CSV Inventory Import Modal */}
+      <InventoryImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        products={products}
+        onApplyUpdates={(updated) => {
+          setProducts(updated);
+        }}
+        onNotify={(title, message) => {
+          notifySuccess(title, message);
+        }}
+      />
+
+      {/* Customer Quick Reorder Confirmation Modal */}
+      <ReorderConfirmModal
+        isOpen={Boolean(reorderTargetOrder)}
+        order={reorderTargetOrder}
+        products={products}
+        onConfirm={(target) => {
+          reorder(target);
+          setReorderTargetOrder(null);
+        }}
+        onClose={() => setReorderTargetOrder(null)}
+        money={money}
+      />
+
+      {/* Real-time Order Confirmation & Visual Progress Stepper Modal */}
+      <OrderConfirmationModal
+        isOpen={Boolean(confirmedOrder)}
+        order={confirmedOrder}
+        onClose={() => setConfirmedOrder(null)}
+        onViewOrders={() => {
+          setConfirmedOrder(null);
+          go("history");
+        }}
+        onReorder={(target) => {
+          setConfirmedOrder(null);
+          setReorderTargetOrder(target);
+        }}
+        onStatusChange={(newStatus) => {
+          if (confirmedOrder) {
+            updateStatus(confirmedOrder.id, newStatus);
+            setConfirmedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+          }
+        }}
+        money={money}
+        formatDate={formatDate}
+      />
     </div>
   );
 }
